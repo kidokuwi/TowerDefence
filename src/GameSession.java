@@ -14,6 +14,7 @@ public class GameSession {
     public final List<Balloon> balloons = new ArrayList<>();
     public final List<Tower> towers = new ArrayList<>();
     public final List<Projectile> projectiles = new ArrayList<>();
+    public final List<FloatingText> floatingTexts = new ArrayList<>();
 
     public Tower selectedTower = null;
     public final boolean[][] onPath;
@@ -51,7 +52,22 @@ public class GameSession {
             moveBalloons();
             fireTowers(now);
             updateProjectiles();
+            updateFloatingTexts();
         }
+    }
+
+    private void updateFloatingTexts() {
+        Iterator<FloatingText> it = floatingTexts.iterator();
+        while (it.hasNext()) {
+            FloatingText ft = it.next();
+            ft.update();
+            if (ft.life <= 0)
+                it.remove();
+        }
+    }
+
+    public void spawnFloatingText(String text, double x, double y, Color color) {
+        floatingTexts.add(new FloatingText(text, x, y, color));
     }
 
     private void moveBalloons() {
@@ -72,7 +88,7 @@ public class GameSession {
 
     private void fireTowers(long now) {
         for (Tower t : towers) {
-            t.update(now, state); // Economic towers
+            t.update(now, this); // Economic towers
             if (!t.canFire(now))
                 continue;
 

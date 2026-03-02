@@ -2,27 +2,34 @@ import java.awt.*;
 
 /**
  * Banana Farm – generates cash over time.
+ * Takes 2x2 grid spaces.
  * Cost: $250
  */
 public class BananaFarm extends Tower {
     private long lastProductionTime;
-    private double productionAmount = 20.0;
+    private double productionAmount = 50.0;
     private double intervalMs = 10000.0; // every 10 seconds
 
     public BananaFarm(int gridX, int gridY, int cellSize) {
         this.gridX = gridX;
         this.gridY = gridY;
-        this.px = gridX * cellSize + cellSize / 2;
-        this.py = gridY * cellSize + cellSize / 2;
-        this.range = 0; // farms don't shoot
+        // Center of 2x2 footprint (across gx, gx+1 and gy, gy+1)
+        this.px = gridX * cellSize + cellSize;
+        this.py = gridY * cellSize + cellSize;
+        this.range = 0;
         this.damage = 0;
-        this.fireRateMs = Double.MAX_VALUE; // never fires
+        this.fireRateMs = Double.MAX_VALUE;
         this.lastProductionTime = 0;
     }
 
     @Override
     public String getName() {
         return "Banana Farm";
+    }
+
+    @Override
+    public int getSize() {
+        return 2;
     }
 
     @Override
@@ -57,7 +64,7 @@ public class BananaFarm extends Tower {
 
     @Override
     protected void applyUpgradeA() {
-        productionAmount += 15;
+        productionAmount += 30;
     }
 
     @Override
@@ -66,13 +73,14 @@ public class BananaFarm extends Tower {
     }
 
     @Override
-    public void update(long nowMs, GameState state) {
+    public void update(long nowMs, GameSession session) {
         if (lastProductionTime == 0) {
             lastProductionTime = nowMs;
             return;
         }
         if (nowMs - lastProductionTime >= intervalMs) {
-            state.addCash((int) productionAmount);
+            session.state.addCash((int) productionAmount);
+            session.spawnFloatingText("+$" + (int) productionAmount, px - 10, py - 20, new Color(40, 200, 40));
             lastProductionTime = nowMs;
         }
     }

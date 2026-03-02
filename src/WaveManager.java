@@ -13,8 +13,13 @@ public class WaveManager {
     private long waveEndTime = 0;
     private boolean wavePending = false;
     private boolean firstWave = true;
-    private final Random rng = new Random();
+    private Random rng = new Random();
     private double difficultyMultiplier = 1.0;
+
+    public void setSeed(long seed) {
+        this.rng = new Random(seed);
+        reset();
+    }
 
     public void setDifficulty(double mult) {
         this.difficultyMultiplier = mult;

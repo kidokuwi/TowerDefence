@@ -4,9 +4,12 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Main game panel: manages one or two GameSessions (Solo or VS mode).
+ * Side-by-Side Layout: [Session 1 + Sidebar 1] | [Session 2 + Sidebar 2]
+ * Supports scaling to fit different screen resolutions.
  */
 public class GamePanel extends JPanel implements ActionListener, MouseListener {
 
@@ -19,9 +22,10 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
     public static final int CELL = 40;
 
     private List<GameSession> sessions = new ArrayList<>();
-    private final Sidebar sidebar = new Sidebar();
+    private List<Sidebar> sidebars = new ArrayList<>();
     private GameMode mode = GameMode.SOLO;
     private boolean modeSelected = false;
+    private double renderScale = 1.0;
 
     private BufferedImage buffer;
     private Graphics2D bg;
@@ -32,42 +36,59 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         setBackground(Color.BLACK);
         addMouseListener(this);
         setFocusable(true);
-        // Initial size for menu
         setPreferredSize(new Dimension(800, 600));
     }
 
     public void initGame(GameMode m) {
         this.mode = m;
         this.modeSelected = true;
+        // 0.85 scale for VS mode fits ~1700px width on 1920x1080 screens.
+        this.renderScale = (mode == GameMode.VS) ? 0.85 : 1.0;
+
         sessions.clear();
+        sidebars.clear();
+
+        long waveSeed = new Random().nextLong();
 
         if (mode == GameMode.SOLO) {
-            sessions.add(new GameSession(GAME_W, GAME_H, CELL));
+            GameSession s1 = new GameSession(GAME_W, GAME_H, CELL);
+            s1.waveMgr.setSeed(waveSeed);
+            sessions.add(s1);
+
+            Sidebar sb1 = new Sidebar();
+            sb1.setOffsetX(GAME_W);
+            sidebars.add(sb1);
+
             setPreferredSize(new Dimension(GAME_W + Sidebar.WIDTH, GAME_H));
-            sidebar.setOffsetX(GAME_W);
         } else {
-            sessions.add(new GameSession(GAME_W, GAME_H, CELL));
+            // Player 1
+            GameSession p1 = new GameSession(GAME_W, GAME_H, CELL);
+            p1.waveMgr.setDifficulty(1.5);
+            p1.waveMgr.setSeed(waveSeed);
+            sessions.add(p1);
+            Sidebar sb1 = new Sidebar();
+            sb1.setOffsetX(GAME_W);
+            sidebars.add(sb1);
+
+            // Player 2
             GameSession p2 = new GameSession(GAME_W, GAME_H, CELL);
-            p2.waveMgr.setDifficulty(1.5); // Harder rounds for VS
+            p2.waveMgr.setDifficulty(1.5);
+            p2.waveMgr.setSeed(waveSeed);
             sessions.add(p2);
-            // VS rounds are harder for everyone actually
-            sessions.get(0).waveMgr.setDifficulty(1.5);
+            Sidebar sb2 = new Sidebar();
+            sb2.setOffsetX(GAME_W);
+            sidebars.add(sb2);
 
-            setPreferredSize(new Dimension(GAME_W * 2 + Sidebar.WIDTH, GAME_H));
-            sidebar.setOffsetX(GAME_W * 2);
+            int totalW = (int) ((GAME_W + Sidebar.WIDTH) * 2 * renderScale);
+            int totalH = (int) (GAME_H * renderScale);
+            setPreferredSize(new Dimension(totalW, totalH));
         }
 
-        // Revalidate and repaint for new size
-        Container parent = getParent();
-        if (parent instanceof JViewport vp) {
-            // inside a scroll pane maybe?
-        } else if (parent != null) {
-            Window win = SwingUtilities.getWindowAncestor(this);
-            if (win != null)
-                win.pack();
-        }
+        Window win = SwingUtilities.getWindowAncestor(this);
+        if (win != null)
+            win.pack();
 
-        buffer = new BufferedImage(getPreferredSize().width, GAME_H, BufferedImage.TYPE_INT_ARGB);
+        buffer = new BufferedImage(getPreferredSize().width, getPreferredSize().height, BufferedImage.TYPE_INT_ARGB);
         bg = buffer.createGraphics();
         bg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
@@ -84,11 +105,9 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
             return;
 
         long now = System.currentTimeMillis() - startTime;
-        for (GameSession s : sessions) {
+        for (GameSession s : sessions)
             s.tick(now);
-        }
 
-        // Check win condition for VS
         if (mode == GameMode.VS) {
             GameSession s1 = sessions.get(0);
             GameSession s2 = sessions.get(1);
@@ -111,35 +130,40 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         bg.setColor(new Color(20, 22, 26));
         bg.fillRect(0, 0, buffer.getWidth(), buffer.getHeight());
 
+        Graphics2D gActive = (Graphics2D) bg.create();
+        gActive.scale(renderScale, renderScale);
+
         for (int i = 0; i < sessions.size(); i++) {
-            Graphics2D g = (Graphics2D) bg.create(i * GAME_W, 0, GAME_W, GAME_H);
-            drawSession(g, sessions.get(i), i);
+            int xOffset = i * (GAME_W + Sidebar.WIDTH);
+            Graphics2D g = (Graphics2D) gActive.create(xOffset, 0, GAME_W + Sidebar.WIDTH, GAME_H);
+
+            // Draw Game Area
+            Graphics2D gGame = (Graphics2D) g.create(0, 0, GAME_W, GAME_H);
+            drawSession(gGame, sessions.get(i), i);
+            gGame.dispose();
+
+            // Draw Sidebar
+            sidebars.get(i).draw(g, sessions.get(i).state, sessions.get(i).selectedTower, sessions.get(i).waveMgr,
+                    nowMs);
+
             g.dispose();
 
-            // Separator line
+            // Separator
             if (i > 0) {
-                bg.setColor(Color.DARK_GRAY);
-                bg.drawLine(i * GAME_W, 0, i * GAME_W, GAME_H);
+                gActive.setColor(Color.DARK_GRAY);
+                gActive.setStroke(new BasicStroke(4f / (float) renderScale));
+                gActive.drawLine(xOffset, 0, xOffset, GAME_H);
+                gActive.setStroke(new BasicStroke(1f));
             }
         }
-
-        // Sidebar uses the first session for purchasing? Or whichever is "active"?
-        // In simple VS, maybe sidebar shows info for P1 or both?
-        // Let's assume sidebar controls the first session's selection for now.
-        // Actually, in VS we need two sidebars or a shared one.
-        // To keep it simple, Sidebar will show stats for the last clicked session.
-        GameSession active = sessions.get(0);
-        for (GameSession s : sessions) {
-            if (s.selectedTower != null || s.state.selectedTowerType != null)
-                active = s;
-        }
-        sidebar.draw(bg, active.state, active.selectedTower, active.waveMgr, nowMs);
+        gActive.dispose();
     }
 
     private void renderMenu() {
         if (buffer == null) {
             buffer = new BufferedImage(800, 600, BufferedImage.TYPE_INT_ARGB);
             bg = buffer.createGraphics();
+            bg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         }
         bg.setColor(new Color(30, 32, 40));
         bg.fillRect(0, 0, 800, 600);
@@ -161,25 +185,23 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
     }
 
     private void drawSession(Graphics2D g, GameSession s, int id) {
-        // Background
         g.setColor(new Color(34, 40, 28));
         g.fillRect(0, 0, GAME_W, GAME_H);
-
         drawGrid(g);
         drawPath(g);
-
         for (Tower t : s.towers)
             t.draw(g, t == s.selectedTower);
         for (Balloon b : s.balloons)
             b.draw(g);
         for (Projectile p : s.projectiles)
             p.draw(g);
+        for (FloatingText ft : s.floatingTexts)
+            ft.draw(g);
 
-        if (s.state.gameOver) {
+        if (s.state.gameOver)
             drawOverlay(g, "DEFEAT", "Game Over", new Color(200, 40, 40, 180));
-        } else if (s.state.victory) {
-            drawOverlay(g, "VICTORY", "You are the winner!", new Color(40, 200, 40, 180));
-        }
+        else if (s.state.victory)
+            drawOverlay(g, "VICTORY", "Winner!", new Color(40, 200, 40, 180));
 
         g.setColor(Color.WHITE);
         g.drawString("PLAYER " + (id + 1), 10, 20);
@@ -222,24 +244,28 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         if (buffer != null)
             g.drawImage(buffer, 0, 0, null);
         else
-            renderMenu(); // Initial render if timer hasn't started
+            renderMenu();
     }
 
     @Override
     public void mouseClicked(MouseEvent e) {
-        int mx = e.getX(), my = e.getY();
+        int realX = e.getX(), realY = e.getY();
+
+        // Scale mouse coords back to game space
+        int mx = (int) (realX / renderScale);
+        int my = (int) (realY / renderScale);
 
         if (!modeSelected) {
-            if (mx >= 300 && mx <= 500) {
-                if (my >= 250 && my <= 300)
+            // Menu is always at 1.0 scale (on the initial buffer)
+            if (realX >= 300 && realX <= 500) {
+                if (realY >= 250 && realY <= 300)
                     initGame(GameMode.SOLO);
-                else if (my >= 320 && my <= 370)
+                else if (realY >= 320 && realY <= 370)
                     initGame(GameMode.VS);
             }
             return;
         }
 
-        // Restart on game over
         boolean anyGameOver = false;
         for (GameSession s : sessions)
             if (s.state.gameOver || s.state.victory)
@@ -249,51 +275,40 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
             return;
         }
 
-        // Click inside sidebar
-        if (mx >= sidebarOffset()) {
-            // Which session is currently controlled? Let's say it's the one most recently
-            // clicked.
-            // For now, simplify: sidebar controls ALL sessions or just P1?
-            // User said "VS Battles which splits the screen into 2 games that run
-            // simultainlesly".
-            // Typically in mobile and simple PVP, you have your own sidebar.
-            // Here, let's assume P1 is the user.
-            GameSession s = sessions.get(0);
-            String action = sidebar.handleClick(mx, my, s.state, s.selectedTower, s.waveMgr);
-            if (action == null)
-                return;
-            handleSidebarAction(s, action);
-            return;
-        }
-
-        // Click on game area
-        int sessionIdx = mx / GAME_W;
+        int fullSessionWidth = GAME_W + Sidebar.WIDTH;
+        int sessionIdx = mx / fullSessionWidth;
         if (sessionIdx >= sessions.size())
             return;
 
         GameSession s = sessions.get(sessionIdx);
-        int localX = mx % GAME_W;
+        Sidebar sb = sidebars.get(sessionIdx);
+        int localX = mx % fullSessionWidth;
+
+        // Click in sidebar
+        if (localX >= GAME_W) {
+            String action = sb.handleClick(localX, my, s.state, s.selectedTower, s.waveMgr);
+            if (action != null)
+                handleSidebarAction(s, action);
+            return;
+        }
+
+        // Click in game area
         int gx = localX / CELL;
         int gy = my / CELL;
 
-        // Selection
         for (Tower t : s.towers) {
-            if (t.gridX == gx && t.gridY == gy) {
+            if (gx >= t.gridX && gx < t.gridX + t.getSize() &&
+                    gy >= t.gridY && gy < t.gridY + t.getSize()) {
                 s.selectedTower = (s.selectedTower == t) ? null : t;
                 s.state.selectedTowerType = null;
                 return;
             }
         }
 
-        if (s.state.selectedTowerType != null) {
+        if (s.state.selectedTowerType != null)
             placeTower(s, gx, gy);
-        } else {
+        else
             s.selectedTower = null;
-        }
-    }
-
-    private int sidebarOffset() {
-        return mode == GameMode.SOLO ? GAME_W : GAME_W * 2;
     }
 
     private void handleSidebarAction(GameSession s, String action) {
@@ -315,19 +330,36 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
                 s.selectedTower = null;
             }
             case "early" -> s.waveMgr.startNextWave(s.state);
-            case "upgA" -> s.selectedTower.upgrade(0, s.state);
-            case "upgB" -> s.selectedTower.upgrade(1, s.state);
+            case "upgA" -> {
+                if (s.selectedTower != null)
+                    s.selectedTower.upgrade(0, s.state);
+            }
+            case "upgB" -> {
+                if (s.selectedTower != null)
+                    s.selectedTower.upgrade(1, s.state);
+            }
         }
     }
 
     private void placeTower(GameSession s, int gx, int gy) {
-        if (gx < 0 || gy < 0 || gx >= GAME_W / CELL || gy >= GAME_H / CELL)
+        int size = 1;
+        if ("farm".equals(s.state.selectedTowerType))
+            size = 2;
+        if (gx < 0 || gy < 0 || gx + size > GAME_W / CELL || gy + size > GAME_H / CELL)
             return;
-        if (s.onPath[gx][gy])
-            return;
-        for (Tower t : s.towers)
-            if (t.gridX == gx && t.gridY == gy)
-                return;
+
+        for (int dx = 0; dx < size; dx++) {
+            for (int dy = 0; dy < size; dy++) {
+                int nx = gx + dx, ny = gy + dy;
+                if (s.onPath[nx][ny])
+                    return;
+                for (Tower t : s.towers) {
+                    if (nx >= t.gridX && nx < t.gridX + t.getSize() &&
+                            ny >= t.gridY && ny < t.gridY + t.getSize())
+                        return;
+                }
+            }
+        }
 
         Tower newTower = switch (s.state.selectedTowerType) {
             case "dart" -> new DartTower(gx, gy, CELL);
@@ -338,13 +370,11 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         };
         if (newTower == null || !s.state.canAfford(newTower.getCost()))
             return;
-
         s.state.spend(newTower.getCost());
         s.towers.add(newTower);
         s.state.selectedTowerType = null;
     }
 
-    // Unused mouse events
     public void mousePressed(MouseEvent e) {
     }
 
