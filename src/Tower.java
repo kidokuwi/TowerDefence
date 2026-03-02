@@ -38,6 +38,10 @@ public abstract class Tower {
 
     public abstract Color getColor();
 
+    public int getSize() {
+        return 1; // 1x1 cells by default
+    }
+
     // ── Logic ────────────────────────────────────────────────────────────────
     public boolean canFire(long nowMs) {
         return (nowMs - lastFireTime) >= fireRateMs;
@@ -47,7 +51,7 @@ public abstract class Tower {
      * Called every frame to allow towers to perform logic (e.g., economic
      * production).
      */
-    public void update(long nowMs, GameState state) {
+    public void update(long nowMs, GameSession session) {
         // Default: do nothing
     }
 
@@ -100,18 +104,25 @@ public abstract class Tower {
             g.setStroke(new BasicStroke(1f));
         }
         // Base
+        int baseSize = getSize() * 40 - 6;
+        int innerSize = getSize() * 40 - 10;
+
         g.setColor(getColor().darker());
-        g.fillRoundRect(px - 17, py - 17, 34, 34, 8, 8);
+        g.fillRoundRect(px - baseSize / 2, py - baseSize / 2, baseSize, baseSize, 8, 8);
         g.setColor(getColor());
-        g.fillRoundRect(px - 15, py - 15, 30, 30, 6, 6);
-        // Barrel hint
-        g.setColor(getColor().darker().darker());
-        g.fillRect(px - 3, py - 20, 6, 8);
+        g.fillRoundRect(px - innerSize / 2, py - innerSize / 2, innerSize, innerSize, 6, 6);
+
+        // Barrel hint (only for 1x1 shooting towers)
+        if (getSize() == 1) {
+            g.setColor(getColor().darker().darker());
+            g.fillRect(px - 3, py - 20, 6, 8);
+        }
+
         // Selection ring
         if (selected) {
             g.setColor(Color.WHITE);
             g.setStroke(new BasicStroke(2.5f));
-            g.drawRoundRect(px - 15, py - 15, 30, 30, 6, 6);
+            g.drawRoundRect(px - innerSize / 2, py - innerSize / 2, innerSize, innerSize, 6, 6);
             g.setStroke(new BasicStroke(1f));
         }
     }
