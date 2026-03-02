@@ -5,7 +5,7 @@ public class Main {
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("Balloon Tower Defense");
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setResizable(false);
+            frame.setResizable(true);
 
             GamePanel gamePanel = new GamePanel();
             frame.add(gamePanel);

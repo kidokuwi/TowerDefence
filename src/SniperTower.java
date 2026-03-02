@@ -78,24 +78,22 @@ public class SniperTower extends Tower {
 
     @Override
     protected void applyUpgradeA() {
-        // Base 10 -> 25 -> 75 -> 300 (one-shot level 8)
-        damage = switch (upgradeA) {
-            case 1 -> 25;
-            case 2 -> 75;
-            case 3 -> 300;
-            default -> 10;
-        };
+        if (upgradeA == 1)
+            damage = Math.max(damage, 25);
+        else if (upgradeA == 2)
+            damage = Math.max(damage, 75);
+        else if (upgradeA == 3)
+            damage = Math.max(damage, 300);
     }
 
     @Override
     protected void applyUpgradeB() {
-        // Base 2000ms -> 1400ms -> 800ms -> 300ms
-        fireRateMs = switch (upgradeB) {
-            case 1 -> 1400;
-            case 2 -> 800;
-            case 3 -> 300;
-            default -> 2000;
-        };
+        if (upgradeB == 1)
+            fireRateMs = Math.min(fireRateMs, 1400);
+        else if (upgradeB == 2)
+            fireRateMs = Math.min(fireRateMs, 800);
+        else if (upgradeB == 3)
+            fireRateMs = Math.min(fireRateMs, 300);
     }
 
     @Override

@@ -32,19 +32,21 @@ public class Balloon {
     public int waypointIndex; // next waypoint to head toward
     public double x, y; // pixel position
     public double vx, vy; // current velocity vector
+    public double speedMultiplier;
     public boolean dead;
     public boolean reachedEnd;
 
     private final List<Point> waypoints;
 
     // ── Constructor ──────────────────────────────────────────────────────────
-    public Balloon(int level, List<Point> waypoints) {
+    public Balloon(int level, List<Point> waypoints, double speedMultiplier) {
         this.level = Math.max(1, Math.min(level, 10));
         this.waypoints = waypoints;
         int idx = this.level - 1;
         this.maxHp = BASE_HP[idx];
         this.hp = this.maxHp;
-        this.speed = BASE_SPEED[idx];
+        this.speedMultiplier = speedMultiplier;
+        this.speed = BASE_SPEED[idx] * speedMultiplier;
         this.waypointIndex = 0;
         this.distanceTravelled = 0;
         this.dead = false;

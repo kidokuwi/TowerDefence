@@ -7,8 +7,8 @@ import java.awt.*;
  */
 public class BananaFarm extends Tower {
     private long lastProductionTime;
-    private double productionAmount = 25.0; // Weaker base
-    private double intervalMs = 10000.0; // every 10 seconds
+    private double productionAmount = 30.0; // Base income
+    private double intervalMs = 12000.0; // every 12 seconds (Slower base)
 
     public BananaFarm(int gridX, int gridY, int cellSize) {
         this.gridX = gridX;
@@ -34,15 +34,15 @@ public class BananaFarm extends Tower {
 
     @Override
     public int getCost() {
-        return 250;
+        return 450; // Increased base cost
     }
 
     @Override
     public int getUpgradeACost() {
         return switch (upgradeA) {
-            case 0 -> 150;
-            case 1 -> 450;
-            case 2 -> 2000;
+            case 0 -> 400; // Bigger Bananas
+            case 1 -> 900; // Plantation
+            case 2 -> 4500; // Research Facility
             default -> 0;
         };
     }
@@ -50,9 +50,9 @@ public class BananaFarm extends Tower {
     @Override
     public int getUpgradeBCost() {
         return switch (upgradeB) {
-            case 0 -> 200;
-            case 1 -> 600;
-            case 2 -> 1800;
+            case 0 -> 300; // Faster Harvest
+            case 1 -> 1200; // Market Dynamics
+            case 2 -> 6500; // Global Export
             default -> 0;
         };
     }
@@ -88,24 +88,24 @@ public class BananaFarm extends Tower {
 
     @Override
     protected void applyUpgradeA() {
-        // Levels: 1: +25 ($50), 2: +50 ($100), 3: +200 ($300)
-        productionAmount += switch (upgradeA) {
-            case 1 -> 25;
-            case 2 -> 50;
-            case 3 -> 200;
-            default -> 0;
-        };
+        // Multiplier based approach for production
+        if (upgradeA == 1)
+            productionAmount = 60; // Bigger Bananas
+        else if (upgradeA == 2)
+            productionAmount = 140; // Plantation
+        else if (upgradeA == 3)
+            productionAmount = 650; // Research Facility
     }
 
     @Override
     protected void applyUpgradeB() {
-        // Levels: 1: -2s (8s), 2: -2s (6s), 3: -4s (2s)
-        intervalMs -= switch (upgradeB) {
-            case 1 -> 2000;
-            case 2 -> 2000;
-            case 3 -> 4000;
-            default -> 0;
-        };
+        // Reduciton based approach for interval
+        if (upgradeB == 1)
+            intervalMs = 9000; // Faster Harvest (12 -> 9)
+        else if (upgradeB == 2)
+            intervalMs = 6000; // Market Dynamics (9 -> 6)
+        else if (upgradeB == 3)
+            intervalMs = 2500; // Global Export (6 -> 2.5)
     }
 
     @Override

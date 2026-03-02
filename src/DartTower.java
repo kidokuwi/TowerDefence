@@ -108,6 +108,7 @@ public class DartTower extends Tower {
     @Override
     public Projectile fire(Balloon target, long nowMs) {
         lastFireTime = nowMs;
+        // Base projectile
         Projectile p = new Projectile(px, py, target, damage, 5.0, getColor(), false, 0);
         int pierce = 1;
         if (upgradeA == 1)
@@ -119,8 +120,28 @@ public class DartTower extends Tower {
 
         if (upgradeB == 3 && pierce < 3)
             pierce = 3;
-
         p.setPierce(pierce);
+
+        // Triple Shot logic: Add 2 extra projectiles in a fan pattern
+        if (upgradeB >= 2) {
+            double angle = Math.atan2(target.y - py, target.x - px);
+            double fanAngle = Math.toRadians(15);
+
+            // Left shot
+            Projectile pLeft = new Projectile(px, py, null, damage, 5.0, getColor(), false, 0);
+            pLeft.vx = Math.cos(angle - fanAngle) * 5.0;
+            pLeft.vy = Math.sin(angle - fanAngle) * 5.0;
+            pLeft.setPierce(pierce);
+            p.spawnedShots.add(pLeft);
+
+            // Right shot
+            Projectile pRight = new Projectile(px, py, null, damage, 5.0, getColor(), false, 0);
+            pRight.vx = Math.cos(angle + fanAngle) * 5.0;
+            pRight.vy = Math.sin(angle + fanAngle) * 5.0;
+            pRight.setPierce(pierce);
+            p.spawnedShots.add(pRight);
+        }
+
         return p;
     }
 }
