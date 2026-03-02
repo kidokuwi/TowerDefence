@@ -5,7 +5,7 @@ import java.util.*;
  */
 public class WaveManager {
 
-    private static final int SPAWN_INTERVAL_MS = 600; // ms between individual balloon spawns
+    private static final int SPAWN_INTERVAL_MS = 400; // ms between individual balloon spawns
     private static final int WAVE_COOLDOWN_MS = 15_000; // ms between waves
 
     private Queue<Integer> spawnQueue = new LinkedList<>();
@@ -35,7 +35,8 @@ public class WaveManager {
     }
 
     private void buildWaveQueue(int wave) {
-        int count = (int) ((8 + wave * 3) * difficultyMultiplier);
+        // Exponential scaling for balloon count
+        int count = (int) (8 * Math.pow(1.15, wave) * difficultyMultiplier);
         spawnQueue.clear();
         for (int i = 0; i < count; i++) {
             spawnQueue.add(randomLevel(wave));
@@ -43,14 +44,18 @@ public class WaveManager {
     }
 
     private int randomLevel(int wave) {
-        // Weight array: index 0 = level 1 … index 5 = level 6
-        int[] weights = new int[6];
+        // Weight array: index 0 = level 1 … index 9 = level 10
+        int[] weights = new int[10];
         weights[0] = Math.max(0, 10 - wave * 2);
         weights[1] = Math.max(0, 8 - (int) (wave * 1.2));
         weights[2] = Math.min(8, wave * 2);
         weights[3] = Math.min(6, Math.max(0, wave - 2) * 2);
         weights[4] = Math.min(5, Math.max(0, wave - 4) * 2);
         weights[5] = Math.min(4, Math.max(0, wave - 6) * 2);
+        weights[6] = Math.min(4, Math.max(0, wave - 10) * 3); // Level 7 starts wave 10
+        weights[7] = Math.min(3, Math.max(0, wave - 15) * 4); // Level 8 starts wave 15
+        weights[8] = Math.min(3, Math.max(0, wave - 20) * 5); // Level 9 starts wave 20
+        weights[9] = Math.min(2, Math.max(0, wave - 20) * 6); // Level 10 starts wave 20
 
         int total = 0;
         for (int w : weights)
@@ -59,7 +64,7 @@ public class WaveManager {
             return 1;
         int r = rng.nextInt(total);
         int cum = 0;
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 10; i++) {
             cum += weights[i];
             if (r < cum)
                 return i + 1;
@@ -89,7 +94,13 @@ public class WaveManager {
         if (!spawnQueue.isEmpty()) {
             if (nowMs - lastSpawnTime >= (SPAWN_INTERVAL_MS / difficultyMultiplier)) {
                 int level = spawnQueue.poll();
-                balloons.add(new Balloon(level, Path.getWaypoints()));
+                Balloon b = new Balloon(level, Path.getWaypoints());
+                // MOAB HP scaling: 400 base + 7% exponential per wave past 20
+                if (level == 10) {
+                    double scaledHP = 400 * Math.pow(1.07, Math.max(0, state.waveNumber - 20));
+                    b.setMaxHp(scaledHP);
+                }
+                balloons.add(b);
                 lastSpawnTime = nowMs;
             }
         } else if (!wavePending) {

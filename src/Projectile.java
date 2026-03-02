@@ -4,14 +4,17 @@ import java.util.ArrayList;
 
 /**
  * A projectile that moves toward a target balloon.
- * Supports AoE for BombTower and cluster sub-projectiles.
+ * Supports homing (tracking) until the target is hit or dead.
  */
 public class Projectile {
 
     public double x, y;
-    private final Balloon target;
-    private final double damage;
+    private Balloon target;
     private final double speed;
+    private double vx, vy;
+    private int pierce = 1;
+    private final List<Integer> hitBalloonIds = new ArrayList<>();
+    private final double damage;
     private final Color color;
     private final boolean isAoe;
     private final double blastRadius;
@@ -26,60 +29,112 @@ public class Projectile {
         this.x = sx;
         this.y = sy;
         this.target = target;
-        this.damage = damage;
         this.speed = speed;
+        this.damage = damage;
         this.color = color;
         this.isAoe = isAoe;
         this.blastRadius = blastRadius;
         this.done = false;
+
+        // Initial aim
+        updateVelocityTowardTarget();
+    }
+
+    private void updateVelocityTowardTarget() {
+        if (target == null || target.dead || target.reachedEnd) {
+            target = null;
+            return;
+        }
+        double dx = target.x - x;
+        double dy = target.y - y;
+        double dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+            this.vx = (dx / dist) * speed;
+            this.vy = (dy / dist) * speed;
+        }
+    }
+
+    public void setPierce(int p) {
+        this.pierce = p;
     }
 
     /**
-     * Moves toward the target balloon.
-     * 
-     * @param balloons – full balloon list needed for AoE hits.
-     * @param state    – GameState for awarding money.
+     * Moves toward target (if any) and checks for collisions.
      */
     public void update(List<Balloon> balloons, GameState state) {
         if (done)
             return;
-        if (target.dead || target.reachedEnd) {
+
+        // Update tracking
+        if (target != null) {
+            updateVelocityTowardTarget();
+        }
+
+        // Move projectile
+        x += vx;
+        y += vy;
+
+        // Out of bounds check
+        if (x < -100 || x > 900 || y < -100 || y > 700) {
             done = true;
             return;
         }
 
-        double dx = target.x - x;
-        double dy = target.y - y;
-        double dist = Math.sqrt(dx * dx + dy * dy);
+        // Collision logic
+        for (int i = 0; i < balloons.size(); i++) {
+            Balloon b = balloons.get(i);
+            if (b.dead || b.reachedEnd)
+                continue;
 
-        if (dist <= speed + 2) {
-            // Hit the target
-            hitAt(target.x, target.y, balloons, state);
-        } else {
-            double scale = speed / dist;
-            x += dx * scale;
-            y += dy * scale;
+            // Important: don't hit the same balloon twice with the same projectile!
+            int id = System.identityHashCode(b);
+            if (hitBalloonIds.contains(id))
+                continue;
+
+            double dx = b.x - x;
+            double dy = b.y - y;
+            double distSq = dx * dx + dy * dy;
+            int r = (b.level == 10) ? 45
+                    : (b.level == 9) ? 24 : (b.level == 8) ? 26 : (b.level == 7) ? 22 : (10 + b.level);
+
+            if (distSq <= (r + 4) * (r + 4)) {
+                hitBalloonIds.add(id);
+                // If we hit our tracked target, stop tracking it
+                if (b == target) {
+                    target = null;
+                }
+                hitAt(b, balloons, state);
+                if (done)
+                    break;
+            }
         }
     }
 
-    private void hitAt(double hx, double hy, List<Balloon> balloons, GameState state) {
-        done = true;
+    private void hitAt(Balloon b, List<Balloon> balloons, GameState state) {
         if (isAoe) {
-            // Damage all balloons in blast radius
-            for (Balloon b : balloons) {
-                if (b.dead || b.reachedEnd)
+            done = true;
+            // Explosion logic
+            double hx = b.x;
+            double hy = b.y;
+            for (Balloon other : balloons) {
+                if (other.dead || other.reachedEnd)
                     continue;
-                double dx = b.x - hx;
-                double dy = b.y - hy;
+                double dx = other.x - hx;
+                double dy = other.y - hy;
                 if (dx * dx + dy * dy <= blastRadius * blastRadius) {
-                    if (b.takeDamage(damage)) {
-                        state.addCash(b.getReward());
+                    if (other.takeDamage(damage)) {
+                        state.addCash(other.getReward());
                     }
                 }
             }
         } else {
-            if (target.takeDamage(damage)) {
-                state.addCash(target.getReward());
+            // Impact logic
+            if (b.takeDamage(damage)) {
+                state.addCash(b.getReward());
+            }
+            pierce--;
+            if (pierce <= 0) {
+                done = true;
             }
         }
     }

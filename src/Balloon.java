@@ -15,9 +15,13 @@ public class Balloon {
             new Color(230, 200, 30), // 4 – Yellow
             new Color(220, 100, 180), // 5 – Pink
             new Color(40, 40, 40), // 6 – Black
+            new Color(150, 150, 160), // 7 – Metallic Grey (Big)
+            new Color(120, 0, 200), // 8 - Purple (Elite Splitter)
+            new Color(150, 100, 50), // 9 - Ceramic (Tough)
+            new Color(0, 150, 255) // 10 - MOAB (Massive)
     };
-    private static final int[] BASE_HP = { 1, 2, 3, 5, 8, 14 };
-    private static final double[] BASE_SPEED = { 1.5, 1.6, 1.75, 1.9, 2.1, 2.4 };
+    private static final int[] BASE_HP = { 1, 2, 3, 5, 8, 14, 30, 45, 60, 400 };
+    private static final double[] BASE_SPEED = { 1.5, 1.6, 1.75, 1.9, 2.1, 2.4, 1.8, 2.2, 2.0, 1.0 };
 
     // ── Fields ───────────────────────────────────────────────────────────────
     public int level; // 1-6
@@ -27,6 +31,7 @@ public class Balloon {
     public double distanceTravelled;
     public int waypointIndex; // next waypoint to head toward
     public double x, y; // pixel position
+    public double vx, vy; // current velocity vector
     public boolean dead;
     public boolean reachedEnd;
 
@@ -34,7 +39,7 @@ public class Balloon {
 
     // ── Constructor ──────────────────────────────────────────────────────────
     public Balloon(int level, List<Point> waypoints) {
-        this.level = Math.max(1, Math.min(level, 6));
+        this.level = Math.max(1, Math.min(level, 10));
         this.waypoints = waypoints;
         int idx = this.level - 1;
         this.maxHp = BASE_HP[idx];
@@ -53,10 +58,17 @@ public class Balloon {
 
     // ── Update ───────────────────────────────────────────────────────────────
     public void move() {
-        if (dead || reachedEnd)
+        if (dead || reachedEnd) {
+            vx = 0;
+            vy = 0;
             return;
+        }
 
         double remaining = speed;
+        // Basic velocity approximation for the current step
+        double lastX = x;
+        double lastY = y;
+
         while (remaining > 0 && waypointIndex < waypoints.size()) {
             Point target = waypoints.get(waypointIndex);
             double dx = target.x - x;
@@ -70,6 +82,8 @@ public class Balloon {
                 waypointIndex++;
                 if (waypointIndex >= waypoints.size()) {
                     reachedEnd = true;
+                    vx = 0;
+                    vy = 0;
                     return;
                 }
             } else {
@@ -80,6 +94,10 @@ public class Balloon {
                 remaining = 0;
             }
         }
+
+        // Final velocity for this frame
+        vx = x - lastX;
+        vy = y - lastY;
     }
 
     /** Deals damage; marks as dead if HP ≤ 0. Returns true if popped. */
@@ -92,8 +110,39 @@ public class Balloon {
         return false;
     }
 
+    public void setMaxHp(double newMax) {
+        this.maxHp = newMax;
+        this.hp = newMax;
+    }
+
     public int getReward() {
-        return level * 10;
+        if (level == 10)
+            return 500;
+        if (level == 9)
+            return 150;
+        if (level == 8)
+            return 200;
+        return level == 7 ? 100 : level * 10;
+    }
+
+    public int getSplitLevel() {
+        if (level == 10)
+            return 9;
+        if (level == 9)
+            return 8;
+        if (level == 8)
+            return 7;
+        return level == 7 ? 4 : 0;
+    }
+
+    public int getSplitCount() {
+        if (level == 10)
+            return 4;
+        if (level == 9)
+            return 2;
+        if (level == 8)
+            return 2;
+        return level == 7 ? 4 : 0;
     }
 
     public Color getColor() {
@@ -104,7 +153,7 @@ public class Balloon {
     public void draw(Graphics2D g) {
         if (dead || reachedEnd)
             return;
-        int r = 10 + level;
+        int r = (level == 10) ? 45 : (level == 9) ? 24 : (level == 8) ? 26 : (level == 7) ? 22 : (10 + level);
         // Shadow
         g.setColor(new Color(0, 0, 0, 60));
         g.fillOval((int) (x - r + 2), (int) (y - r + 2), r * 2, r * 2);

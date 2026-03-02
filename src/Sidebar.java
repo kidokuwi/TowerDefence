@@ -16,6 +16,7 @@ public class Sidebar {
     private final Rectangle btnUpgA = new Rectangle();
     private final Rectangle btnUpgB = new Rectangle();
     private final Rectangle btnEarly = new Rectangle();
+    private final Rectangle btnTurbo = new Rectangle();
 
     private int offsetX; // px where sidebar starts
 
@@ -31,9 +32,9 @@ public class Sidebar {
 
         // Background
         g.setColor(new Color(28, 30, 38));
-        g.fillRect(x, 0, w, 600);
+        g.fillRect(x, 0, w, 1000); // Increased height for upscaling
         g.setColor(new Color(60, 65, 80));
-        g.drawLine(x, 0, x, 600);
+        g.drawLine(x, 0, x, 1000);
 
         int cy = 14;
 
@@ -96,14 +97,14 @@ public class Sidebar {
 
             cy += 8;
 
-            boolean canA = selected.upgradeA == 0 && state.cash >= selected.getUpgradeACost();
-            boolean canB = selected.upgradeB == 0 && state.cash >= selected.getUpgradeBCost();
+            boolean canA = selected.upgradeA < 3 && state.cash >= selected.getUpgradeACost();
+            boolean canB = selected.upgradeB < 3 && state.cash >= selected.getUpgradeBCost();
 
             cy = drawUpgradeButton(g, selected.getUpgradeAName(),
-                    selected.upgradeA == 1, canA, x + 8, cy, w - 16, btnUpgA);
+                    selected.upgradeA == 3, canA, x + 8, cy, w - 16, btnUpgA);
             cy += 4;
             cy = drawUpgradeButton(g, selected.getUpgradeBName(),
-                    selected.upgradeB == 1, canB, x + 8, cy, w - 16, btnUpgB);
+                    selected.upgradeB == 3, canB, x + 8, cy, w - 16, btnUpgB);
         } else {
             btnUpgA.setSize(0, 0);
             btnUpgB.setSize(0, 0);
@@ -111,6 +112,17 @@ public class Sidebar {
             g.setColor(new Color(120, 130, 150));
             g.drawString("Click a tower to upgrade", x + 10, cy + 18);
         }
+
+        // ── Turbo Mode button ─────────────────────────────────────────────
+        int turboY = 600 - 100;
+        g.setColor(state.turboMode ? new Color(255, 140, 0) : new Color(60, 65, 80));
+        g.fillRoundRect(x + 8, turboY, w - 16, 38, 8, 8);
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        String turboLabel = state.turboMode ? "⚡ TURBO: 3x" : "⏩ TURBO: OFF";
+        FontMetrics fmT = g.getFontMetrics();
+        g.drawString(turboLabel, x + 8 + (w - 16 - fmT.stringWidth(turboLabel)) / 2, turboY + 24);
+        btnTurbo.setBounds(x + 8, turboY, w - 16, 38);
 
         // ── Start Wave Early button ───────────────────────────────────────
         int btnY = 600 - 55;
@@ -185,11 +197,13 @@ public class Sidebar {
             return "farm";
         if (btnEarly.contains(mx, my) && wm.isWavePending())
             return "early";
+        if (btnTurbo.contains(mx, my))
+            return "turbo";
         if (selected != null) {
-            if (btnUpgA.contains(mx, my) && selected.upgradeA == 0
+            if (btnUpgA.contains(mx, my) && selected.upgradeA < 3
                     && state.cash >= selected.getUpgradeACost())
                 return "upgA";
-            if (btnUpgB.contains(mx, my) && selected.upgradeB == 0
+            if (btnUpgB.contains(mx, my) && selected.upgradeB < 3
                     && state.cash >= selected.getUpgradeBCost())
                 return "upgB";
         }
