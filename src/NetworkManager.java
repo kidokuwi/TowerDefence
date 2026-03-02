@@ -70,7 +70,11 @@ public class NetworkManager {
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Connection closed.");
+                // Connection closed
+            } finally {
+                if (onMessageReceived != null) {
+                    onMessageReceived.accept("DISCONNECT");
+                }
             }
         });
         listenThread.start();

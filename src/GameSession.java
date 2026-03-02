@@ -141,7 +141,7 @@ public class GameSession {
                 int sl = b.getSplitLevel();
                 if (sl > 0) {
                     for (int i = 0; i < b.getSplitCount(); i++) {
-                        Balloon child = new Balloon(sl, waypoints);
+                        Balloon child = new Balloon(sl, waypoints, b.speedMultiplier);
                         child.x = b.x;
                         child.y = b.y;
                         child.waypointIndex = b.waypointIndex;

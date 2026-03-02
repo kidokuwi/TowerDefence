@@ -367,14 +367,17 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         drawCenteredString(bg, status, w / 2, 300);
 
         if (mode == GameMode.LOBBY_HOST && otherPlayerConnected) {
-            drawMenuButton(bg, "START GAME", (w - 200) / 2, 400, 200, 50);
+            drawMenuButton(bg, "START GAME", (w - 200) / 2, 380, 200, 50);
         } else if (mode == GameMode.LOBBY_JOIN || mode == GameMode.LOBBY_MATCHMAKING) {
             bg.setColor(Color.LIGHT_GRAY);
             bg.setFont(new Font("Segoe UI", Font.ITALIC, 18));
             String msg = (mode == GameMode.LOBBY_MATCHMAKING) ? "Please wait for a match..."
                     : "Waiting for host to start...";
-            drawCenteredString(bg, msg, w / 2, 400);
+            drawCenteredString(bg, msg, w / 2, 380);
         }
+
+        // Always show Back button in lobby
+        drawMenuButton(bg, "BACK TO MENU", (w - 200) / 2, 480, 200, 50);
     }
 
     private void drawCenteredString(Graphics2D g, String s, int x, int y) {
@@ -403,14 +406,17 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
 
     private void drawOverlay(Graphics2D g, String title, String sub, Color bg2) {
         g.setColor(bg2);
-        g.fillRoundRect(GAME_W / 2 - 160, GAME_H / 2 - 70, 320, 140, 20, 20);
+        g.fillRoundRect(GAME_W / 2 - 160, GAME_H / 2 - 100, 320, 200, 20, 20);
         g.setFont(new Font("Segoe UI", Font.BOLD, 36));
         g.setColor(Color.WHITE);
         FontMetrics fm = g.getFontMetrics();
-        g.drawString(title, GAME_W / 2 - fm.stringWidth(title) / 2, GAME_H / 2 - 10);
+        g.drawString(title, GAME_W / 2 - fm.stringWidth(title) / 2, GAME_H / 2 - 40);
         g.setFont(new Font("Segoe UI", Font.PLAIN, 18));
         fm = g.getFontMetrics();
-        g.drawString(sub, GAME_W / 2 - fm.stringWidth(sub) / 2, GAME_H / 2 + 22);
+        g.drawString(sub, GAME_W / 2 - fm.stringWidth(sub) / 2, GAME_H / 2 - 8);
+
+        // Menu button in overlay
+        drawMenuButton(g, "MAIN MENU", GAME_W / 2 - 80, GAME_H / 2 + 30, 160, 40);
     }
 
     @Override
@@ -476,24 +482,47 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
             return;
         }
 
-        if (mode == GameMode.LOBBY_HOST) {
-            int btnW = 200, btnH = 50;
-            int bx = (GAME_W - btnW) / 2;
-            int by = 400;
-            if (otherPlayerConnected && mx >= bx && mx <= bx + btnW && my >= by && my <= by + btnH) {
-                startMatch();
+        if (mode == GameMode.LOBBY_HOST || mode == GameMode.LOBBY_JOIN || mode == GameMode.LOBBY_MATCHMAKING) {
+            int bw = 200, bh = 50;
+            int bx = (GAME_W - bw) / 2;
+
+            // Start Button (Host only)
+            if (mode == GameMode.LOBBY_HOST && otherPlayerConnected) {
+                if (mx >= bx && mx <= bx + bw && my >= 380 && my <= 380 + bh) {
+                    startMatch();
+                    return;
+                }
+            }
+
+            // Back Button
+            if (mx >= bx && mx <= bx + bw && my >= 480 && my <= 480 + bh) {
+                returnToMenu();
+                return;
             }
             return;
         }
-        if (mode == GameMode.LOBBY_JOIN)
-            return;
 
         boolean anyGameOver = false;
         for (GameSession s : sessions)
             if (s.state.gameOver || s.state.victory)
                 anyGameOver = true;
         if (anyGameOver) {
-            initGame(mode);
+            // Check for Menu button click in overlay
+            int bw = 160, bh = 40;
+            int bx = GAME_W / 2 - 80;
+            int by = GAME_H / 2 + 30;
+            // Note: Oversimplified click check for overlay which is centered on GAME_W/2
+            // Since it's post game, we use localX calculation later, but here we check
+            // against mx relative to slot 0/1
+            int fullW = GAME_W + Sidebar.WIDTH;
+            int localX = mx % fullW;
+            if (localX >= bx && localX <= bx + bw && my >= by && my <= by + bh) {
+                returnToMenu();
+            } else {
+                // Re-clicking anywhere else restarts (old behavior, kept for ease)
+                // Actually let's just make it return to menu or restart?
+                // initGame(mode);
+            }
             return;
         }
 
@@ -578,6 +607,18 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         }
     }
 
+    private void returnToMenu() {
+        if (network != null) {
+            if (isMultiplayer)
+                network.send("QUIT");
+            network.close();
+            network = null;
+        }
+        modeSelected = false;
+        otherPlayerConnected = false;
+        repaint();
+    }
+
     private void handleNetworkMessage(String msg) {
         SwingUtilities.invokeLater(() -> {
             String[] parts = msg.split(":");
@@ -600,6 +641,31 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
             }
             if (parts[0].equals("JOINED")) {
                 otherPlayerConnected = true;
+                return;
+            }
+            if (parts[0].equals("QUIT") || parts[0].equals("DISCONNECT")) {
+                if (modeSelected && isMultiplayer && !sessions.isEmpty()) {
+                    // Other player left mid-game
+                    boolean alreadyFinished = false;
+                    for (GameSession s : sessions)
+                        if (s.state.gameOver || s.state.victory)
+                            alreadyFinished = true;
+
+                    if (!alreadyFinished) {
+                        int myIdx = mySessionIndex;
+                        sessions.get(myIdx).state.victory = true;
+                        sessions.get(myIdx).state.gameOver = false;
+                        String reason = parts[0].equals("QUIT") ? "OPPONENT QUIT" : "CONNECTION LOST";
+                        // We can use a special state or just flag it
+                        System.out.println(reason + " - You win!");
+                    }
+                } else if (mode == GameMode.LOBBY_HOST || mode == GameMode.LOBBY_JOIN
+                        || mode == GameMode.LOBBY_MATCHMAKING) {
+                    otherPlayerConnected = false;
+                    if (parts[0].equals("QUIT") && mode == GameMode.LOBBY_JOIN) {
+                        returnToMenu(); // Host closed lobby
+                    }
+                }
                 return;
             }
 
