@@ -7,7 +7,7 @@ import java.awt.*;
  */
 public class BananaFarm extends Tower {
     private long lastProductionTime;
-    private double productionAmount = 50.0;
+    private double productionAmount = 25.0; // Weaker base
     private double intervalMs = 10000.0; // every 10 seconds
 
     public BananaFarm(int gridX, int gridY, int cellSize) {
@@ -39,22 +39,46 @@ public class BananaFarm extends Tower {
 
     @Override
     public int getUpgradeACost() {
-        return 150;
+        return switch (upgradeA) {
+            case 0 -> 150;
+            case 1 -> 450;
+            case 2 -> 2000;
+            default -> 0;
+        };
     }
 
     @Override
     public int getUpgradeBCost() {
-        return 200;
+        return switch (upgradeB) {
+            case 0 -> 200;
+            case 1 -> 600;
+            case 2 -> 1800;
+            default -> 0;
+        };
     }
 
     @Override
     public String getUpgradeAName() {
-        return upgradeA == 0 ? "Bigger Bananas ($150)" : "Bigger Bananas ✓";
+        if (upgradeA == 3)
+            return "MAXED Out (A)";
+        return switch (upgradeA) {
+            case 0 -> "Bigger Bananas ($" + getUpgradeACost() + ")";
+            case 1 -> "Banana Plantation ($" + getUpgradeACost() + ")";
+            case 2 -> "Research Facility ($" + getUpgradeACost() + ")";
+            default -> "";
+        };
     }
 
     @Override
     public String getUpgradeBName() {
-        return upgradeB == 0 ? "Banana Plantation ($200)" : "Plantation ✓";
+        if (upgradeB == 3)
+            return "MAXED Out (B)";
+        return switch (upgradeB) {
+            case 0 -> "Faster Harvest ($" + getUpgradeBCost() + ")";
+            case 1 -> "Market Dynamics ($" + getUpgradeBCost() + ")";
+            case 2 -> "Global Export ($" + getUpgradeBCost() + ")";
+            default -> "";
+        };
     }
 
     @Override
@@ -64,12 +88,24 @@ public class BananaFarm extends Tower {
 
     @Override
     protected void applyUpgradeA() {
-        productionAmount += 30;
+        // Levels: 1: +25 ($50), 2: +50 ($100), 3: +200 ($300)
+        productionAmount += switch (upgradeA) {
+            case 1 -> 25;
+            case 2 -> 50;
+            case 3 -> 200;
+            default -> 0;
+        };
     }
 
     @Override
     protected void applyUpgradeB() {
-        intervalMs -= 3000;
+        // Levels: 1: -2s (8s), 2: -2s (6s), 3: -4s (2s)
+        intervalMs -= switch (upgradeB) {
+            case 1 -> 2000;
+            case 2 -> 2000;
+            case 3 -> 4000;
+            default -> 0;
+        };
     }
 
     @Override

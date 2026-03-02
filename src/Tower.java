@@ -1,4 +1,5 @@
 import java.awt.*;
+import java.awt.geom.Point2D;
 import java.util.List;
 
 /**
@@ -17,7 +18,7 @@ public abstract class Tower {
     protected long lastFireTime;
 
     // ── Upgrade state ────────────────────────────────────────────────────────
-    public int upgradeA = 0; // 0 = none, 1 = purchased
+    public int upgradeA = 0; // Level 0-3
     public int upgradeB = 0;
 
     public abstract String getName();
@@ -75,19 +76,65 @@ public abstract class Tower {
     }
 
     public boolean upgrade(int branch, GameState state) {
-        if (branch == 0 && upgradeA == 0 && state.canAfford(getUpgradeACost())) {
+        if (branch == 0 && upgradeA < 3 && state.canAfford(getUpgradeACost())) {
             state.spend(getUpgradeACost());
-            upgradeA = 1;
+            upgradeA++;
             applyUpgradeA();
             return true;
         }
-        if (branch == 1 && upgradeB == 0 && state.canAfford(getUpgradeBCost())) {
+        if (branch == 1 && upgradeB < 3 && state.canAfford(getUpgradeBCost())) {
             state.spend(getUpgradeBCost());
-            upgradeB = 1;
+            upgradeB++;
             applyUpgradeB();
             return true;
         }
         return false;
+    }
+
+    public Projectile fire(Balloon target, long nowMs) {
+        return null;
+    }
+
+    /**
+     * Calculates the point where a projectile with speed s will intercept
+     * a balloon moving with current velocity (target.vx, target.vy).
+     */
+    protected Point2D.Double calculateIntercept(Balloon target, double projectileSpeed) {
+        double tx = target.x;
+        double ty = target.y;
+        double tvx = target.vx;
+        double tvy = target.vy;
+
+        double relX = tx - px;
+        double relY = ty - py;
+
+        // Quadratic coefficients: a*t^2 + b*t + c = 0
+        double a = tvx * tvx + tvy * tvy - projectileSpeed * projectileSpeed;
+        double b = 2 * (tvx * relX + tvy * relY);
+        double c = relX * relX + relY * relY;
+
+        double t = -1;
+        if (Math.abs(a) < 1e-6) {
+            if (Math.abs(b) > 1e-6)
+                t = -c / b;
+        } else {
+            double disc = b * b - 4 * a * c;
+            if (disc >= 0) {
+                double t1 = (-b + Math.sqrt(disc)) / (2 * a);
+                double t2 = (-b - Math.sqrt(disc)) / (2 * a);
+                if (t1 > 0 && t2 > 0)
+                    t = Math.min(t1, t2);
+                else if (t1 > 0)
+                    t = t1;
+                else if (t2 > 0)
+                    t = t2;
+            }
+        }
+
+        if (t < 0 || t > 5.0)
+            return new Point2D.Double(tx, ty); // Cap prediction to 5 seconds
+
+        return new Point2D.Double(tx + tvx * t, ty + tvy * t);
     }
 
     // ── Draw ─────────────────────────────────────────────────────────────────

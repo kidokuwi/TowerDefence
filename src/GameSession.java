@@ -10,6 +10,7 @@ import java.util.List;
 public class GameSession {
     public final GameState state = new GameState();
     public final WaveManager waveMgr = new WaveManager();
+    public long logicalTime = 0;
 
     public final List<Balloon> balloons = new ArrayList<>();
     public final List<Tower> towers = new ArrayList<>();
@@ -92,17 +93,14 @@ public class GameSession {
             if (!t.canFire(now))
                 continue;
 
-            if (t instanceof DartTower dt) {
-                Balloon tgt = dt.findTarget(balloons);
-                if (tgt != null)
-                    projectiles.add(dt.fire(tgt, now));
-            } else if (t instanceof SniperTower st) {
-                projectiles.addAll(st.fireAll(balloons, now));
-            } else if (t instanceof BombTower bt) {
-                Balloon tgt = bt.findTarget(balloons);
-                if (tgt != null) {
-                    projectiles.add(bt.fire(tgt, now));
-                    if (bt.isCluster()) {
+            Balloon tgt = t.findTarget(balloons);
+            if (tgt != null) {
+                Projectile p = t.fire(tgt, now);
+                if (p != null) {
+                    projectiles.add(p);
+
+                    // Special case: BombTower clusters
+                    if (t instanceof BombTower bt && bt.isCluster()) {
                         int added = 0;
                         for (Balloon b : balloons) {
                             if (b == tgt || b.dead || b.reachedEnd)
@@ -127,11 +125,32 @@ public class GameSession {
             if (p.done)
                 it.remove();
         }
-        balloons.removeIf(b -> b.dead);
+
+        List<Balloon> newBalloons = new ArrayList<>();
+        Iterator<Balloon> bit = balloons.iterator();
+        while (bit.hasNext()) {
+            Balloon b = bit.next();
+            if (b.dead) {
+                int sl = b.getSplitLevel();
+                if (sl > 0) {
+                    for (int i = 0; i < b.getSplitCount(); i++) {
+                        Balloon child = new Balloon(sl, waypoints);
+                        child.x = b.x;
+                        child.y = b.y;
+                        child.waypointIndex = b.waypointIndex;
+                        child.distanceTravelled = b.distanceTravelled - (i * 15); // staggering children slightly
+                        newBalloons.add(child);
+                    }
+                }
+                bit.remove();
+            }
+        }
+        balloons.addAll(newBalloons);
     }
 
     public void reset(long now) {
         state.reset();
+        logicalTime = 0;
         balloons.clear();
         towers.clear();
         projectiles.clear();

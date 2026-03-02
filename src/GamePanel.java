@@ -30,7 +30,6 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
     private BufferedImage buffer;
     private Graphics2D bg;
     private Timer timer;
-    private long startTime;
 
     public GamePanel() {
         setBackground(Color.BLACK);
@@ -42,14 +41,15 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
     public void initGame(GameMode m) {
         this.mode = m;
         this.modeSelected = true;
-        // 0.85 scale for VS mode fits ~1700px width on 1920x1080 screens.
-        this.renderScale = (mode == GameMode.VS) ? 0.85 : 1.0;
+        // Solo: 1.65x (1650x990) fits 1080p well. VS: 0.85x fits side-by-side.
+        this.renderScale = (mode == GameMode.VS) ? 0.85 : 1.65;
 
         sessions.clear();
         sidebars.clear();
 
         long waveSeed = new Random().nextLong();
 
+        int viewW, viewH;
         if (mode == GameMode.SOLO) {
             GameSession s1 = new GameSession(GAME_W, GAME_H, CELL);
             s1.waveMgr.setSeed(waveSeed);
@@ -59,40 +59,36 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
             sb1.setOffsetX(GAME_W);
             sidebars.add(sb1);
 
-            setPreferredSize(new Dimension(GAME_W + Sidebar.WIDTH, GAME_H));
+            viewW = (int) ((GAME_W + Sidebar.WIDTH) * renderScale);
+            viewH = (int) (GAME_H * renderScale);
         } else {
-            // Player 1
-            GameSession p1 = new GameSession(GAME_W, GAME_H, CELL);
-            p1.waveMgr.setDifficulty(1.5);
-            p1.waveMgr.setSeed(waveSeed);
-            sessions.add(p1);
-            Sidebar sb1 = new Sidebar();
-            sb1.setOffsetX(GAME_W);
-            sidebars.add(sb1);
-
-            // Player 2
-            GameSession p2 = new GameSession(GAME_W, GAME_H, CELL);
-            p2.waveMgr.setDifficulty(1.5);
-            p2.waveMgr.setSeed(waveSeed);
-            sessions.add(p2);
-            Sidebar sb2 = new Sidebar();
-            sb2.setOffsetX(GAME_W);
-            sidebars.add(sb2);
-
-            int totalW = (int) ((GAME_W + Sidebar.WIDTH) * 2 * renderScale);
-            int totalH = (int) (GAME_H * renderScale);
-            setPreferredSize(new Dimension(totalW, totalH));
+            // VS Players
+            for (int i = 0; i < 2; i++) {
+                GameSession s = new GameSession(GAME_W, GAME_H, CELL);
+                s.waveMgr.setDifficulty(1.5);
+                s.waveMgr.setSeed(waveSeed);
+                sessions.add(s);
+                Sidebar sb = new Sidebar();
+                sb.setOffsetX(GAME_W);
+                sidebars.add(sb);
+            }
+            viewW = (int) ((GAME_W + Sidebar.WIDTH) * 2 * renderScale);
+            viewH = (int) (GAME_H * renderScale);
         }
 
-        Window win = SwingUtilities.getWindowAncestor(this);
-        if (win != null)
-            win.pack();
+        setPreferredSize(new Dimension(viewW, viewH));
 
-        buffer = new BufferedImage(getPreferredSize().width, getPreferredSize().height, BufferedImage.TYPE_INT_ARGB);
+        Window win = SwingUtilities.getWindowAncestor(this);
+        if (win != null) {
+            win.pack();
+            win.setLocationRelativeTo(null);
+        }
+
+        buffer = new BufferedImage(viewW, viewH, BufferedImage.TYPE_INT_ARGB);
         bg = buffer.createGraphics();
         bg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        startTime = System.currentTimeMillis();
+        // Removed startTime = System.currentTimeMillis();
         if (timer == null) {
             timer = new Timer(16, this);
             timer.start();
@@ -104,9 +100,13 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         if (!modeSelected)
             return;
 
-        long now = System.currentTimeMillis() - startTime;
-        for (GameSession s : sessions)
-            s.tick(now);
+        for (GameSession s : sessions) {
+            int iterations = s.state.turboMode ? 3 : 1;
+            for (int i = 0; i < iterations; i++) {
+                s.logicalTime += 16;
+                s.tick(s.logicalTime);
+            }
+        }
 
         if (mode == GameMode.VS) {
             GameSession s1 = sessions.get(0);
@@ -117,11 +117,11 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
                 s1.state.victory = true;
         }
 
-        render(now);
+        render();
         repaint();
     }
 
-    private void render(long nowMs) {
+    private void render() {
         if (!modeSelected) {
             renderMenu();
             return;
@@ -144,7 +144,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
 
             // Draw Sidebar
             sidebars.get(i).draw(g, sessions.get(i).state, sessions.get(i).selectedTower, sessions.get(i).waveMgr,
-                    nowMs);
+                    sessions.get(i).logicalTime);
 
             g.dispose();
 
@@ -160,28 +160,38 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
     }
 
     private void renderMenu() {
-        if (buffer == null) {
-            buffer = new BufferedImage(800, 600, BufferedImage.TYPE_INT_ARGB);
+        int w = getWidth() > 0 ? getWidth() : 800;
+        int h = getHeight() > 0 ? getHeight() : 600;
+
+        if (buffer == null || buffer.getWidth() != w || buffer.getHeight() != h) {
+            buffer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
             bg = buffer.createGraphics();
             bg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         }
-        bg.setColor(new Color(30, 32, 40));
-        bg.fillRect(0, 0, 800, 600);
-        bg.setColor(Color.WHITE);
-        bg.setFont(new Font("Segoe UI", Font.BOLD, 48));
-        bg.drawString("TOWER DEFENSE", 200, 150);
 
-        drawMenuButton(bg, "SOLO MODE", 300, 250, 200, 50);
-        drawMenuButton(bg, "VS BATTLES", 300, 320, 200, 50);
+        bg.setColor(new Color(20, 22, 28));
+        bg.fillRect(0, 0, w, h);
+
+        bg.setColor(Color.WHITE);
+        bg.setFont(new Font("Segoe UI", Font.BOLD, 52));
+        FontMetrics fm = bg.getFontMetrics();
+        String title = "TOWER DEFENSE";
+        bg.drawString(title, (w - fm.stringWidth(title)) / 2, h / 2 - 120);
+
+        // Center buttons
+        int btnW = 240, btnH = 60;
+        int bx = (w - btnW) / 2;
+        drawMenuButton(bg, "SOLO MODE", bx, h / 2 - 40, btnW, btnH);
+        drawMenuButton(bg, "VS BATTLES", bx, h / 2 + 40, btnW, btnH);
     }
 
     private void drawMenuButton(Graphics2D g, String txt, int x, int y, int w, int h) {
-        g.setColor(new Color(60, 100, 180));
-        g.fillRoundRect(x, y, w, h, 10, 10);
+        g.setColor(new Color(50, 110, 210));
+        g.fillRoundRect(x, y, w, h, 12, 12);
         g.setColor(Color.WHITE);
-        g.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        g.setFont(new Font("Segoe UI", Font.BOLD, 22));
         FontMetrics fm = g.getFontMetrics();
-        g.drawString(txt, x + (w - fm.stringWidth(txt)) / 2, y + 32);
+        g.drawString(txt, x + (w - fm.stringWidth(txt)) / 2, y + h / 2 + 8);
     }
 
     private void drawSession(Graphics2D g, GameSession s, int id) {
@@ -256,11 +266,14 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         int my = (int) (realY / renderScale);
 
         if (!modeSelected) {
-            // Menu is always at 1.0 scale (on the initial buffer)
-            if (realX >= 300 && realX <= 500) {
-                if (realY >= 250 && realY <= 300)
+            int w = getWidth(), h = getHeight();
+            int btnW = 240, btnH = 60;
+            int bx = (w - btnW) / 2;
+
+            if (realX >= bx && realX <= bx + btnW) {
+                if (realY >= h / 2 - 40 && realY <= h / 2 - 40 + btnH)
                     initGame(GameMode.SOLO);
-                else if (realY >= 320 && realY <= 370)
+                else if (realY >= h / 2 + 40 && realY <= h / 2 + 40 + btnH)
                     initGame(GameMode.VS);
             }
             return;
@@ -330,6 +343,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
                 s.selectedTower = null;
             }
             case "early" -> s.waveMgr.startNextWave(s.state);
+            case "turbo" -> s.state.turboMode = !s.state.turboMode;
             case "upgA" -> {
                 if (s.selectedTower != null)
                     s.selectedTower.upgrade(0, s.state);
