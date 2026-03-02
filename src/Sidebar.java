@@ -12,6 +12,7 @@ public class Sidebar {
     private final Rectangle btnDart = new Rectangle();
     private final Rectangle btnSniper = new Rectangle();
     private final Rectangle btnBomb = new Rectangle();
+    private final Rectangle btnFarm = new Rectangle();
     private final Rectangle btnUpgA = new Rectangle();
     private final Rectangle btnUpgB = new Rectangle();
     private final Rectangle btnEarly = new Rectangle();
@@ -71,6 +72,10 @@ public class Sidebar {
         cy = drawShopButton(g, "Bomb Tower  $150", new Color(210, 100, 30),
                 state.cash >= 150, "bomb".equals(state.selectedTowerType),
                 x + 8, cy, w - 16, btnBomb);
+        cy += 4;
+        cy = drawShopButton(g, "Banana Farm  $250", new Color(240, 230, 60),
+                state.cash >= 250, "farm".equals(state.selectedTowerType),
+                x + 8, cy, w - 16, btnFarm);
 
         // Divider
         cy += 10;
@@ -176,6 +181,8 @@ public class Sidebar {
             return "sniper";
         if (btnBomb.contains(mx, my) && state.cash >= 150)
             return "bomb";
+        if (btnFarm.contains(mx, my) && state.cash >= 250)
+            return "farm";
         if (btnEarly.contains(mx, my) && wm.isWavePending())
             return "early";
         if (selected != null) {

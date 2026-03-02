@@ -14,6 +14,11 @@ public class WaveManager {
     private boolean wavePending = false;
     private boolean firstWave = true;
     private final Random rng = new Random();
+    private double difficultyMultiplier = 1.0;
+
+    public void setDifficulty(double mult) {
+        this.difficultyMultiplier = mult;
+    }
 
     public void startNextWave(GameState state) {
         if (!spawnQueue.isEmpty())
@@ -25,7 +30,7 @@ public class WaveManager {
     }
 
     private void buildWaveQueue(int wave) {
-        int count = 8 + wave * 3;
+        int count = (int) ((8 + wave * 3) * difficultyMultiplier);
         spawnQueue.clear();
         for (int i = 0; i < count; i++) {
             spawnQueue.add(randomLevel(wave));
@@ -77,7 +82,7 @@ public class WaveManager {
 
         // Spawn next balloon from queue
         if (!spawnQueue.isEmpty()) {
-            if (nowMs - lastSpawnTime >= SPAWN_INTERVAL_MS) {
+            if (nowMs - lastSpawnTime >= (SPAWN_INTERVAL_MS / difficultyMultiplier)) {
                 int level = spawnQueue.poll();
                 balloons.add(new Balloon(level, Path.getWaypoints()));
                 lastSpawnTime = nowMs;

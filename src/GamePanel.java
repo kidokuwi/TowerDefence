@@ -3,225 +3,217 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 /**
- * Main game panel: owns the 60-FPS game loop, all entities, rendering, and
- * input.
- * Layout: 800 px game area | 200 px sidebar = 1000 × 600 window.
+ * Main game panel: manages one or two GameSessions (Solo or VS mode).
  */
 public class GamePanel extends JPanel implements ActionListener, MouseListener {
 
-    // ── Layout constants ──────────────────────────────────────────────────────
+    public enum GameMode {
+        SOLO, VS
+    }
+
     public static final int GAME_W = 800;
     public static final int GAME_H = 600;
-    public static final int CELL = 40; // grid cell size in pixels
+    public static final int CELL = 40;
 
-    // ── Game state & entities ─────────────────────────────────────────────────
-    private final GameState state = new GameState();
-    private final WaveManager waveMgr = new WaveManager();
+    private List<GameSession> sessions = new ArrayList<>();
     private final Sidebar sidebar = new Sidebar();
+    private GameMode mode = GameMode.SOLO;
+    private boolean modeSelected = false;
 
-    private final List<Balloon> balloons = new ArrayList<>();
-    private final List<Tower> towers = new ArrayList<>();
-    private final List<Projectile> projectiles = new ArrayList<>();
-
-    private Tower selectedTower = null; // currently clicked placed tower
-
-    // Double-buffer
     private BufferedImage buffer;
     private Graphics2D bg;
-
-    // Timer (60 FPS)
     private Timer timer;
     private long startTime;
 
-    // Path
-    private final List<Point> waypoints = Path.getWaypoints();
-    // Pre-computed set of path cells for placement validation
-    private final boolean[][] onPath = new boolean[GAME_W / CELL + 1][GAME_H / CELL + 1];
-
-    // ── Constructor ───────────────────────────────────────────────────────────
     public GamePanel() {
-        setPreferredSize(new Dimension(GAME_W + Sidebar.WIDTH, GAME_H));
         setBackground(Color.BLACK);
         addMouseListener(this);
-        sidebar.setOffsetX(GAME_W);
-        markPathCells();
+        setFocusable(true);
+        // Initial size for menu
+        setPreferredSize(new Dimension(800, 600));
     }
 
-    /**
-     * Marks grid cells that lie on or very near the path so towers can't be placed
-     * there.
-     */
-    private void markPathCells() {
-        for (int i = 1; i < waypoints.size(); i++) {
-            Point a = waypoints.get(i - 1);
-            Point b = waypoints.get(i);
-            int steps = (int) (a.distance(b) / 5) + 1;
-            for (int s = 0; s <= steps; s++) {
-                double t = (double) s / steps;
-                int px = (int) (a.x + t * (b.x - a.x));
-                int py = (int) (a.y + t * (b.y - a.y));
-                int gx = px / CELL;
-                int gy = py / CELL;
-                for (int dx = -1; dx <= 1; dx++)
-                    for (int dy = -1; dy <= 1; dy++) {
-                        int nx = gx + dx, ny = gy + dy;
-                        if (nx >= 0 && ny >= 0 && nx < onPath.length && ny < onPath[0].length)
-                            onPath[nx][ny] = true;
-                    }
-            }
+    public void initGame(GameMode m) {
+        this.mode = m;
+        this.modeSelected = true;
+        sessions.clear();
+
+        if (mode == GameMode.SOLO) {
+            sessions.add(new GameSession(GAME_W, GAME_H, CELL));
+            setPreferredSize(new Dimension(GAME_W + Sidebar.WIDTH, GAME_H));
+            sidebar.setOffsetX(GAME_W);
+        } else {
+            sessions.add(new GameSession(GAME_W, GAME_H, CELL));
+            GameSession p2 = new GameSession(GAME_W, GAME_H, CELL);
+            p2.waveMgr.setDifficulty(1.5); // Harder rounds for VS
+            sessions.add(p2);
+            // VS rounds are harder for everyone actually
+            sessions.get(0).waveMgr.setDifficulty(1.5);
+
+            setPreferredSize(new Dimension(GAME_W * 2 + Sidebar.WIDTH, GAME_H));
+            sidebar.setOffsetX(GAME_W * 2);
         }
-    }
 
-    public void startGame() {
-        buffer = new BufferedImage(GAME_W + Sidebar.WIDTH, GAME_H, BufferedImage.TYPE_INT_ARGB);
+        // Revalidate and repaint for new size
+        Container parent = getParent();
+        if (parent instanceof JViewport vp) {
+            // inside a scroll pane maybe?
+        } else if (parent != null) {
+            Window win = SwingUtilities.getWindowAncestor(this);
+            if (win != null)
+                win.pack();
+        }
+
+        buffer = new BufferedImage(getPreferredSize().width, GAME_H, BufferedImage.TYPE_INT_ARGB);
         bg = buffer.createGraphics();
         bg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
         startTime = System.currentTimeMillis();
-        timer = new Timer(16, this); // ~60 FPS
-        timer.start();
+        if (timer == null) {
+            timer = new Timer(16, this);
+            timer.start();
+        }
     }
 
-    // ── Game loop ─────────────────────────────────────────────────────────────
     @Override
     public void actionPerformed(ActionEvent e) {
+        if (!modeSelected)
+            return;
+
         long now = System.currentTimeMillis() - startTime;
-        if (!state.gameOver) {
-            waveMgr.tick(balloons, state, now);
-            moveBalloons();
-            fireTowers(now);
-            updateProjectiles();
+        for (GameSession s : sessions) {
+            s.tick(now);
         }
+
+        // Check win condition for VS
+        if (mode == GameMode.VS) {
+            GameSession s1 = sessions.get(0);
+            GameSession s2 = sessions.get(1);
+            if (s1.state.gameOver && !s2.state.gameOver)
+                s2.state.victory = true;
+            if (s2.state.gameOver && !s1.state.gameOver)
+                s1.state.victory = true;
+        }
+
         render(now);
         repaint();
     }
 
-    private void moveBalloons() {
-        Iterator<Balloon> it = balloons.iterator();
-        while (it.hasNext()) {
-            Balloon b = it.next();
-            if (b.dead) {
-                it.remove();
-                continue;
-            }
-            b.move();
-            if (b.reachedEnd) {
-                state.loseLife();
-                it.remove();
-            }
-        }
-    }
-
-    private void fireTowers(long now) {
-        for (Tower t : towers) {
-            if (!t.canFire(now))
-                continue;
-            if (t instanceof DartTower dt) {
-                Balloon tgt = dt.findTarget(balloons);
-                if (tgt != null)
-                    projectiles.add(dt.fire(tgt, now));
-            } else if (t instanceof SniperTower st) {
-                List<Projectile> shots = st.fireAll(balloons, now);
-                projectiles.addAll(shots);
-            } else if (t instanceof BombTower bt) {
-                Balloon tgt = bt.findTarget(balloons);
-                if (tgt != null) {
-                    Projectile bomb = bt.fire(tgt, now);
-                    projectiles.add(bomb);
-                    // Cluster: add 2 more aimed at nearest other balloons
-                    if (bt.isCluster()) {
-                        int added = 0;
-                        for (Balloon b : balloons) {
-                            if (b == tgt || b.dead || b.reachedEnd)
-                                continue;
-                            projectiles.add(new Projectile(
-                                    bt.px, bt.py, b, bt.damage * 0.5,
-                                    3.5, new Color(180, 80, 20), true, bt.getBlastRadius() / 2));
-                            if (++added >= 2)
-                                break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void updateProjectiles() {
-        Iterator<Projectile> it = projectiles.iterator();
-        while (it.hasNext()) {
-            Projectile p = it.next();
-            p.update(balloons, state);
-            if (p.done)
-                it.remove();
-        }
-        // Remove dead balloons (hit by AoE that already removed them)
-        balloons.removeIf(b -> b.dead);
-    }
-
-    // ── Rendering ─────────────────────────────────────────────────────────────
     private void render(long nowMs) {
+        if (!modeSelected) {
+            renderMenu();
+            return;
+        }
+
+        bg.setColor(new Color(20, 22, 26));
+        bg.fillRect(0, 0, buffer.getWidth(), buffer.getHeight());
+
+        for (int i = 0; i < sessions.size(); i++) {
+            Graphics2D g = (Graphics2D) bg.create(i * GAME_W, 0, GAME_W, GAME_H);
+            drawSession(g, sessions.get(i), i);
+            g.dispose();
+
+            // Separator line
+            if (i > 0) {
+                bg.setColor(Color.DARK_GRAY);
+                bg.drawLine(i * GAME_W, 0, i * GAME_W, GAME_H);
+            }
+        }
+
+        // Sidebar uses the first session for purchasing? Or whichever is "active"?
+        // In simple VS, maybe sidebar shows info for P1 or both?
+        // Let's assume sidebar controls the first session's selection for now.
+        // Actually, in VS we need two sidebars or a shared one.
+        // To keep it simple, Sidebar will show stats for the last clicked session.
+        GameSession active = sessions.get(0);
+        for (GameSession s : sessions) {
+            if (s.selectedTower != null || s.state.selectedTowerType != null)
+                active = s;
+        }
+        sidebar.draw(bg, active.state, active.selectedTower, active.waveMgr, nowMs);
+    }
+
+    private void renderMenu() {
+        if (buffer == null) {
+            buffer = new BufferedImage(800, 600, BufferedImage.TYPE_INT_ARGB);
+            bg = buffer.createGraphics();
+        }
+        bg.setColor(new Color(30, 32, 40));
+        bg.fillRect(0, 0, 800, 600);
+        bg.setColor(Color.WHITE);
+        bg.setFont(new Font("Segoe UI", Font.BOLD, 48));
+        bg.drawString("TOWER DEFENSE", 200, 150);
+
+        drawMenuButton(bg, "SOLO MODE", 300, 250, 200, 50);
+        drawMenuButton(bg, "VS BATTLES", 300, 320, 200, 50);
+    }
+
+    private void drawMenuButton(Graphics2D g, String txt, int x, int y, int w, int h) {
+        g.setColor(new Color(60, 100, 180));
+        g.fillRoundRect(x, y, w, h, 10, 10);
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(txt, x + (w - fm.stringWidth(txt)) / 2, y + 32);
+    }
+
+    private void drawSession(Graphics2D g, GameSession s, int id) {
         // Background
-        bg.setColor(new Color(34, 40, 28));
-        bg.fillRect(0, 0, GAME_W, GAME_H);
+        g.setColor(new Color(34, 40, 28));
+        g.fillRect(0, 0, GAME_W, GAME_H);
 
-        drawGrid();
-        drawPath();
+        drawGrid(g);
+        drawPath(g);
 
-        for (Tower t : towers)
-            t.draw(bg, t == selectedTower);
-        for (Balloon b : balloons)
-            b.draw(bg);
-        for (Projectile p : projectiles)
-            p.draw(bg);
+        for (Tower t : s.towers)
+            t.draw(g, t == s.selectedTower);
+        for (Balloon b : s.balloons)
+            b.draw(g);
+        for (Projectile p : s.projectiles)
+            p.draw(g);
 
-        sidebar.draw(bg, state, selectedTower, waveMgr, nowMs);
+        if (s.state.gameOver) {
+            drawOverlay(g, "DEFEAT", "Game Over", new Color(200, 40, 40, 180));
+        } else if (s.state.victory) {
+            drawOverlay(g, "VICTORY", "You are the winner!", new Color(40, 200, 40, 180));
+        }
 
-        if (state.gameOver)
-            drawOverlay("GAME OVER", "Score: " + state.score,
-                    new Color(200, 40, 40, 200));
+        g.setColor(Color.WHITE);
+        g.drawString("PLAYER " + (id + 1), 10, 20);
     }
 
-    private void drawGrid() {
-        bg.setColor(new Color(42, 50, 34));
+    private void drawGrid(Graphics2D g) {
+        g.setColor(new Color(42, 50, 34));
         for (int x = 0; x < GAME_W; x += CELL)
-            bg.drawLine(x, 0, x, GAME_H);
+            g.drawLine(x, 0, x, GAME_H);
         for (int y = 0; y < GAME_H; y += CELL)
-            bg.drawLine(0, y, GAME_W, y);
+            g.drawLine(0, y, GAME_W, y);
     }
 
-    private void drawPath() {
-        // Fill path segments
-        bg.setStroke(new BasicStroke(36, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        bg.setColor(new Color(165, 130, 80));
+    private void drawPath(Graphics2D g) {
+        List<Point> waypoints = Path.getWaypoints();
+        g.setStroke(new BasicStroke(36, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.setColor(new Color(165, 130, 80));
         for (int i = 1; i < waypoints.size(); i++) {
             Point a = waypoints.get(i - 1), b = waypoints.get(i);
-            bg.drawLine(a.x, a.y, b.x, b.y);
+            g.drawLine(a.x, a.y, b.x, b.y);
         }
-        // Edge lines
-        bg.setColor(new Color(120, 90, 50));
-        bg.setStroke(new BasicStroke(38, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        // (drawn behind – we draw highlights on top)
-        bg.setStroke(new BasicStroke(1f));
+        g.setStroke(new BasicStroke(1f));
     }
 
-    private void drawOverlay(String title, String sub, Color bg2) {
-        bg.setColor(bg2);
-        bg.fillRoundRect(GAME_W / 2 - 160, GAME_H / 2 - 70, 320, 140, 20, 20);
-        bg.setFont(new Font("Segoe UI", Font.BOLD, 36));
-        bg.setColor(Color.WHITE);
-        FontMetrics fm = bg.getFontMetrics();
-        bg.drawString(title, GAME_W / 2 - fm.stringWidth(title) / 2, GAME_H / 2 - 10);
-        bg.setFont(new Font("Segoe UI", Font.PLAIN, 18));
-        fm = bg.getFontMetrics();
-        bg.drawString(sub, GAME_W / 2 - fm.stringWidth(sub) / 2, GAME_H / 2 + 22);
-        bg.setFont(new Font("Segoe UI", Font.ITALIC, 13));
-        String restart = "Click anywhere to restart";
-        fm = bg.getFontMetrics();
-        bg.setColor(new Color(220, 220, 220));
-        bg.drawString(restart, GAME_W / 2 - fm.stringWidth(restart) / 2, GAME_H / 2 + 50);
+    private void drawOverlay(Graphics2D g, String title, String sub, Color bg2) {
+        g.setColor(bg2);
+        g.fillRoundRect(GAME_W / 2 - 160, GAME_H / 2 - 70, 320, 140, 20, 20);
+        g.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        g.setColor(Color.WHITE);
+        FontMetrics fm = g.getFontMetrics();
+        g.drawString(title, GAME_W / 2 - fm.stringWidth(title) / 2, GAME_H / 2 - 10);
+        g.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+        fm = g.getFontMetrics();
+        g.drawString(sub, GAME_W / 2 - fm.stringWidth(sub) / 2, GAME_H / 2 + 22);
     }
 
     @Override
@@ -229,121 +221,139 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener {
         super.paintComponent(g);
         if (buffer != null)
             g.drawImage(buffer, 0, 0, null);
+        else
+            renderMenu(); // Initial render if timer hasn't started
     }
 
-    // ── Mouse input ───────────────────────────────────────────────────────────
     @Override
     public void mouseClicked(MouseEvent e) {
         int mx = e.getX(), my = e.getY();
 
+        if (!modeSelected) {
+            if (mx >= 300 && mx <= 500) {
+                if (my >= 250 && my <= 300)
+                    initGame(GameMode.SOLO);
+                else if (my >= 320 && my <= 370)
+                    initGame(GameMode.VS);
+            }
+            return;
+        }
+
         // Restart on game over
-        if (state.gameOver) {
-            restartGame();
+        boolean anyGameOver = false;
+        for (GameSession s : sessions)
+            if (s.state.gameOver || s.state.victory)
+                anyGameOver = true;
+        if (anyGameOver) {
+            initGame(mode);
             return;
         }
 
         // Click inside sidebar
-        if (mx >= GAME_W) {
-            String action = sidebar.handleClick(mx, my, state, selectedTower, waveMgr);
+        if (mx >= sidebarOffset()) {
+            // Which session is currently controlled? Let's say it's the one most recently
+            // clicked.
+            // For now, simplify: sidebar controls ALL sessions or just P1?
+            // User said "VS Battles which splits the screen into 2 games that run
+            // simultainlesly".
+            // Typically in mobile and simple PVP, you have your own sidebar.
+            // Here, let's assume P1 is the user.
+            GameSession s = sessions.get(0);
+            String action = sidebar.handleClick(mx, my, s.state, s.selectedTower, s.waveMgr);
             if (action == null)
                 return;
-            switch (action) {
-                case "dart" -> {
-                    state.selectedTowerType = "dart";
-                    selectedTower = null;
-                }
-                case "sniper" -> {
-                    state.selectedTowerType = "sniper";
-                    selectedTower = null;
-                }
-                case "bomb" -> {
-                    state.selectedTowerType = "bomb";
-                    selectedTower = null;
-                }
-                case "early" -> waveMgr.startNextWave(state);
-                case "upgA" -> selectedTower.upgrade(0, state);
-                case "upgB" -> selectedTower.upgrade(1, state);
-            }
+            handleSidebarAction(s, action);
             return;
         }
 
         // Click on game area
-        int gx = mx / CELL;
+        int sessionIdx = mx / GAME_W;
+        if (sessionIdx >= sessions.size())
+            return;
+
+        GameSession s = sessions.get(sessionIdx);
+        int localX = mx % GAME_W;
+        int gx = localX / CELL;
         int gy = my / CELL;
 
-        // First: check if we clicked an existing tower to select it
-        for (Tower t : towers) {
+        // Selection
+        for (Tower t : s.towers) {
             if (t.gridX == gx && t.gridY == gy) {
-                selectedTower = (selectedTower == t) ? null : t;
-                state.selectedTowerType = null;
+                s.selectedTower = (s.selectedTower == t) ? null : t;
+                s.state.selectedTowerType = null;
                 return;
             }
         }
 
-        // If a tower type is selected, place it
-        if (state.selectedTowerType != null) {
-            placeTower(gx, gy);
+        if (s.state.selectedTowerType != null) {
+            placeTower(s, gx, gy);
         } else {
-            selectedTower = null;
+            s.selectedTower = null;
         }
     }
 
-    private void placeTower(int gx, int gy) {
-        // Bounds check
+    private int sidebarOffset() {
+        return mode == GameMode.SOLO ? GAME_W : GAME_W * 2;
+    }
+
+    private void handleSidebarAction(GameSession s, String action) {
+        switch (action) {
+            case "dart" -> {
+                s.state.selectedTowerType = "dart";
+                s.selectedTower = null;
+            }
+            case "sniper" -> {
+                s.state.selectedTowerType = "sniper";
+                s.selectedTower = null;
+            }
+            case "bomb" -> {
+                s.state.selectedTowerType = "bomb";
+                s.selectedTower = null;
+            }
+            case "farm" -> {
+                s.state.selectedTowerType = "farm";
+                s.selectedTower = null;
+            }
+            case "early" -> s.waveMgr.startNextWave(s.state);
+            case "upgA" -> s.selectedTower.upgrade(0, s.state);
+            case "upgB" -> s.selectedTower.upgrade(1, s.state);
+        }
+    }
+
+    private void placeTower(GameSession s, int gx, int gy) {
         if (gx < 0 || gy < 0 || gx >= GAME_W / CELL || gy >= GAME_H / CELL)
             return;
-        // Not on path
-        if (onPath[gx][gy])
+        if (s.onPath[gx][gy])
             return;
-        // Not occupied
-        for (Tower t : towers)
+        for (Tower t : s.towers)
             if (t.gridX == gx && t.gridY == gy)
                 return;
 
-        Tower newTower = switch (state.selectedTowerType) {
+        Tower newTower = switch (s.state.selectedTowerType) {
             case "dart" -> new DartTower(gx, gy, CELL);
             case "sniper" -> new SniperTower(gx, gy, CELL);
             case "bomb" -> new BombTower(gx, gy, CELL);
+            case "farm" -> new BananaFarm(gx, gy, CELL);
             default -> null;
         };
-        if (newTower == null)
+        if (newTower == null || !s.state.canAfford(newTower.getCost()))
             return;
 
-        if (!state.canAfford(newTower.getCost()))
-            return;
-        state.spend(newTower.getCost());
-        towers.add(newTower);
-        state.selectedTowerType = null;
-    }
-
-    private void restartGame() {
-        state.reset();
-        balloons.clear();
-        towers.clear();
-        projectiles.clear();
-        selectedTower = null;
-        startTime = System.currentTimeMillis();
-        // Recreate wave manager
-        waveMgr.getClass(); // just a no-op; reflection on primitive fields would be complex
-        // Easier: reset via a fresh WaveManager field isn't possible (field is final)
-        // so we work around it using a flag — add a reset() to WaveManager instead
-        waveMgr.reset();
+        s.state.spend(newTower.getCost());
+        s.towers.add(newTower);
+        s.state.selectedTowerType = null;
     }
 
     // Unused mouse events
-    @Override
     public void mousePressed(MouseEvent e) {
     }
 
-    @Override
     public void mouseReleased(MouseEvent e) {
     }
 
-    @Override
     public void mouseEntered(MouseEvent e) {
     }
 
-    @Override
     public void mouseExited(MouseEvent e) {
     }
 }

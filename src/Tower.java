@@ -44,6 +44,14 @@ public abstract class Tower {
     }
 
     /**
+     * Called every frame to allow towers to perform logic (e.g., economic
+     * production).
+     */
+    public void update(long nowMs, GameState state) {
+        // Default: do nothing
+    }
+
+    /**
      * Returns the balloon that is furthest along the path within range, or null.
      */
     public Balloon findTarget(List<Balloon> balloons) {
