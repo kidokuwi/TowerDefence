@@ -98,8 +98,15 @@ public class GameSession {
                 Projectile p = t.fire(tgt, now);
                 if (p != null) {
                     projectiles.add(p);
+                    // Add any extra shots (Triple shot, clusters, etc.)
+                    if (!p.spawnedShots.isEmpty()) {
+                        projectiles.addAll(p.spawnedShots);
+                        p.spawnedShots.clear();
+                    }
 
-                    // Special case: BombTower clusters
+                    // Special case: BombTower clusters (Deprecate this in favor of internal
+                    // spawnedShots?)
+                    // I'll leave the old BombTower logic for now but the new way is cleaner.
                     if (t instanceof BombTower bt && bt.isCluster()) {
                         int added = 0;
                         for (Balloon b : balloons) {

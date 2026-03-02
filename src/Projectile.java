@@ -11,7 +11,7 @@ public class Projectile {
     public double x, y;
     private Balloon target;
     private final double speed;
-    private double vx, vy;
+    public double vx, vy;
     private int pierce = 1;
     private final List<Integer> hitBalloonIds = new ArrayList<>();
     private final double damage;

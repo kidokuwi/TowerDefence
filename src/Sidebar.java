@@ -26,7 +26,7 @@ public class Sidebar {
 
     // ── Render ────────────────────────────────────────────────────────────────
     public void draw(Graphics2D g, GameState state, Tower selected,
-            WaveManager wm, long nowMs) {
+            WaveManager wm, long nowMs, boolean isMultiplayer) {
         int x = offsetX;
         int w = WIDTH;
 
@@ -40,12 +40,22 @@ public class Sidebar {
 
         // ── Stats ──────────────────────────────────────────────────────────
         g.setFont(new Font("Segoe UI", Font.BOLD, 15));
+
+        // Money Icon & Text
+        drawCoin(g, x + 18, cy + 15);
         g.setColor(new Color(255, 215, 80));
-        g.drawString("💰  $" + state.cash, x + 10, cy += 20);
+        g.drawString("$" + state.cash, x + 35, cy += 20);
+
+        // Health Icon & Text
+        drawHeart(g, x + 18, cy + 17);
         g.setColor(new Color(240, 80, 80));
-        g.drawString("❤  " + state.lives + " lives", x + 10, cy += 22);
+        g.drawString(state.lives + " lives", x + 35, cy += 22);
+
+        // Wave Icon & Text
+        drawWave(g, x + 18, cy + 17);
         g.setColor(new Color(140, 200, 255));
-        g.drawString("🌊  Wave " + state.waveNumber, x + 10, cy += 22);
+        g.drawString("Wave " + state.waveNumber, x + 35, cy += 22);
+
         g.setColor(new Color(180, 180, 180));
         g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         g.drawString("Score: " + state.score, x + 10, cy += 18);
@@ -74,8 +84,8 @@ public class Sidebar {
                 state.cash >= 150, "bomb".equals(state.selectedTowerType),
                 x + 8, cy, w - 16, btnBomb);
         cy += 4;
-        cy = drawShopButton(g, "Banana Farm  $250", new Color(240, 230, 60),
-                state.cash >= 250, "farm".equals(state.selectedTowerType),
+        cy = drawShopButton(g, "Banana Farm  $450", new Color(240, 230, 60),
+                state.cash >= 450, "farm".equals(state.selectedTowerType),
                 x + 8, cy, w - 16, btnFarm);
 
         // Divider
@@ -119,27 +129,64 @@ public class Sidebar {
         g.fillRoundRect(x + 8, turboY, w - 16, 38, 8, 8);
         g.setColor(Color.WHITE);
         g.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        String turboLabel = state.turboMode ? "⚡ TURBO: 3x" : "⏩ TURBO: OFF";
+        String turboLabel = state.turboMode ? "      TURBO: 3x" : "      TURBO: OFF";
         FontMetrics fmT = g.getFontMetrics();
         g.drawString(turboLabel, x + 8 + (w - 16 - fmT.stringWidth(turboLabel)) / 2, turboY + 24);
+
+        // Turbo Icon (Lightning)
+        drawBolt(g, x + 45, turboY + 19, state.turboMode ? Color.YELLOW : Color.LIGHT_GRAY);
+
         btnTurbo.setBounds(x + 8, turboY, w - 16, 38);
 
         // ── Start Wave Early button ───────────────────────────────────────
         int btnY = 600 - 55;
         boolean canEarly = wm.isWavePending();
         String label = canEarly
-                ? "▶  Start Wave Early (" + wm.secondsToNextWave(nowMs) + "s)"
-                : "Waiting for balloons…";
+                ? "Start Wave Early (" + wm.secondsToNextWave(nowMs) + "s)"
+                : "Waiting for balloons...";
 
         Color btnCol = canEarly ? new Color(60, 180, 80) : new Color(60, 65, 80);
         g.setColor(btnCol);
         g.fillRoundRect(x + 8, btnY, w - 16, 38, 8, 8);
         g.setColor(canEarly ? new Color(100, 255, 120) : new Color(100, 105, 115));
-        g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        g.setFont(new Font("Segoe UI", Font.BOLD, 12));
         FontMetrics fm = g.getFontMetrics();
         g.drawString(label, x + 8 + (w - 16 - fm.stringWidth(label)) / 2,
                 btnY + 24);
         btnEarly.setBounds(x + 8, btnY, w - 16, 38);
+    }
+
+    private void drawCoin(Graphics2D g, int x, int y) {
+        g.setColor(new Color(255, 215, 80));
+        g.fillOval(x - 7, y - 7, 14, 14);
+        g.setColor(new Color(180, 140, 20));
+        g.drawOval(x - 7, y - 7, 14, 14);
+        g.setFont(new Font("Arial", Font.BOLD, 10));
+        g.drawString("$", x - 3, y + 4);
+    }
+
+    private void drawHeart(Graphics2D g, int x, int y) {
+        g.setColor(new Color(240, 80, 80));
+        int[] triX = { x - 7, x + 7, x };
+        int[] triY = { y - 1, y - 1, y + 7 };
+        g.fillOval(x - 7, y - 6, 8, 8);
+        g.fillOval(x - 1, y - 6, 8, 8);
+        g.fillPolygon(triX, triY, 3);
+    }
+
+    private void drawWave(Graphics2D g, int x, int y) {
+        g.setColor(new Color(140, 200, 255));
+        g.setStroke(new BasicStroke(2f));
+        g.drawArc(x - 6, y - 4, 6, 6, 0, 180);
+        g.drawArc(x, y - 4, 6, 6, 180, 180);
+        g.setStroke(new BasicStroke(1f));
+    }
+
+    private void drawBolt(Graphics2D g, int x, int y, Color color) {
+        g.setColor(color);
+        int[] px = { x, x + 5, x + 2, x + 8, x + 3, x + 6, x };
+        int[] py = { y, y, y + 4, y + 4, y + 10, y + 4, y + 4 };
+        g.fillPolygon(px, py, 7);
     }
 
     private int drawShopButton(Graphics2D g, String label, Color col,
@@ -186,18 +233,18 @@ public class Sidebar {
     // ── Click handling ────────────────────────────────────────────────────────
     /** Returns one of: "dart","sniper","bomb","upgA","upgB","early", or null. */
     public String handleClick(int mx, int my, GameState state, Tower selected,
-            WaveManager wm) {
+            WaveManager wm, boolean isMultiplayer) {
         if (btnDart.contains(mx, my) && state.cash >= 100)
             return "dart";
         if (btnSniper.contains(mx, my) && state.cash >= 175)
             return "sniper";
         if (btnBomb.contains(mx, my) && state.cash >= 150)
             return "bomb";
-        if (btnFarm.contains(mx, my) && state.cash >= 250)
+        if (btnFarm.contains(mx, my) && state.cash >= 450)
             return "farm";
         if (btnEarly.contains(mx, my) && wm.isWavePending())
             return "early";
-        if (btnTurbo.contains(mx, my))
+        if (!isMultiplayer && btnTurbo.contains(mx, my))
             return "turbo";
         if (selected != null) {
             if (btnUpgA.contains(mx, my) && selected.upgradeA < 3

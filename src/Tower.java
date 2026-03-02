@@ -76,17 +76,34 @@ public abstract class Tower {
     }
 
     public boolean upgrade(int branch, GameState state) {
-        if (branch == 0 && upgradeA < 3 && state.canAfford(getUpgradeACost())) {
-            state.spend(getUpgradeACost());
-            upgradeA++;
-            applyUpgradeA();
-            return true;
-        }
-        if (branch == 1 && upgradeB < 3 && state.canAfford(getUpgradeBCost())) {
-            state.spend(getUpgradeBCost());
-            upgradeB++;
-            applyUpgradeB();
-            return true;
+        if (branch == 0) {
+            // Path A
+            if (upgradeA >= 3)
+                return false;
+            // Rule: If Path B is 3, Path A can only go to 2
+            if (upgradeB == 3 && upgradeA >= 2)
+                return false;
+
+            if (state.canAfford(getUpgradeACost())) {
+                state.spend(getUpgradeACost());
+                upgradeA++;
+                applyUpgradeA();
+                return true;
+            }
+        } else if (branch == 1) {
+            // Path B
+            if (upgradeB >= 3)
+                return false;
+            // Rule: If Path A is 3, Path B can only go to 2
+            if (upgradeA == 3 && upgradeB >= 2)
+                return false;
+
+            if (state.canAfford(getUpgradeBCost())) {
+                state.spend(getUpgradeBCost());
+                upgradeB++;
+                applyUpgradeB();
+                return true;
+            }
         }
         return false;
     }

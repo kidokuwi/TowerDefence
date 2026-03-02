@@ -80,28 +80,28 @@ public class BombTower extends Tower {
 
     @Override
     protected void applyUpgradeA() {
-        // Levels: 1: R 80, 2: R 120/Dmg 6, 3: R 200/Dmg 15
+        // Ensure upgrades are incremental and never decrease stats
         if (upgradeA == 1) {
-            blastRadius = 80;
+            blastRadius = Math.max(blastRadius, 80);
         } else if (upgradeA == 2) {
-            blastRadius = 120;
-            damage = 6;
+            blastRadius = Math.max(blastRadius, 120);
+            damage = Math.max(damage, 6);
         } else if (upgradeA == 3) {
-            blastRadius = 200;
-            damage = 15;
+            blastRadius = Math.max(blastRadius, 200);
+            damage = Math.max(damage, 15);
         }
     }
 
     @Override
     protected void applyUpgradeB() {
-        // Levels: 1: FR 1000, 2: FR 600, 3: FR 300/R 250
         if (upgradeB == 1) {
-            fireRateMs = 1000;
+            fireRateMs = Math.min(fireRateMs, 1000);
         } else if (upgradeB == 2) {
-            fireRateMs = 600;
+            fireRateMs = Math.min(fireRateMs, 600);
         } else if (upgradeB == 3) {
-            fireRateMs = 300;
-            range = 250;
+            fireRateMs = Math.min(fireRateMs, 300);
+            range = Math.max(range, 250);
+            clusterBombs = true; // Activate cluster bombs at Tier 3
         }
     }
 
