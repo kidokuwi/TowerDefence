@@ -32,9 +32,9 @@ public class BombTower extends Tower {
     @Override
     public int getUpgradeACost() {
         return switch (upgradeA) {
-            case 0 -> 150;
-            case 1 -> 600;
-            case 2 -> 2000;
+            case 0 -> 250; // Bigger Bombs
+            case 1 -> 800; // Heavy Shells
+            case 2 -> 3500; // MOAB Mauler
             default -> 0;
         };
     }
@@ -42,9 +42,9 @@ public class BombTower extends Tower {
     @Override
     public int getUpgradeBCost() {
         return switch (upgradeB) {
-            case 0 -> 200;
-            case 1 -> 700;
-            case 2 -> 2500;
+            case 0 -> 200; // Faster Reload
+            case 1 -> 1000; // Missile Launcher (Renamed from Semi-Auto)
+            case 2 -> 4500; // Recursive Cluster
             default -> 0;
         };
     }
@@ -67,7 +67,7 @@ public class BombTower extends Tower {
             return "MAXED Out (B)";
         return switch (upgradeB) {
             case 0 -> "Faster Reload ($" + getUpgradeBCost() + ")";
-            case 1 -> "Semi-Auto Bomb ($" + getUpgradeBCost() + ")";
+            case 1 -> "Missile Launcher ($" + getUpgradeBCost() + ")";
             case 2 -> "Recursive Cluster ($" + getUpgradeBCost() + ")";
             default -> "";
         };
@@ -75,33 +75,37 @@ public class BombTower extends Tower {
 
     @Override
     public Color getColor() {
+        if (upgradeA == 3)
+            return new Color(150, 50, 20); // Darker red-ish for mauler
         return new Color(210, 100, 30); // Orange-Brown
     }
 
     @Override
     protected void applyUpgradeA() {
-        // Ensure upgrades are incremental and never decrease stats
         if (upgradeA == 1) {
-            blastRadius = Math.max(blastRadius, 80);
+            blastRadius = 85;
+            damage = 3;
         } else if (upgradeA == 2) {
-            blastRadius = Math.max(blastRadius, 120);
-            damage = Math.max(damage, 6);
+            blastRadius = 110;
+            damage = 8;
         } else if (upgradeA == 3) {
-            blastRadius = Math.max(blastRadius, 200);
-            damage = Math.max(damage, 15);
+            blastRadius = 150;
+            damage = 45; // MOAB Mauler: Massive single-hit damage
+            range = 140;
         }
     }
 
     @Override
     protected void applyUpgradeB() {
         if (upgradeB == 1) {
-            fireRateMs = Math.min(fireRateMs, 1000);
+            fireRateMs = 900;
         } else if (upgradeB == 2) {
-            fireRateMs = Math.min(fireRateMs, 600);
+            fireRateMs = 500;
+            range = 160;
         } else if (upgradeB == 3) {
-            fireRateMs = Math.min(fireRateMs, 300);
-            range = Math.max(range, 250);
-            clusterBombs = true; // Activate cluster bombs at Tier 3
+            fireRateMs = 350;
+            range = 200;
+            clusterBombs = true;
         }
     }
 
