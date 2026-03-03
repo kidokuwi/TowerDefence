@@ -20,6 +20,7 @@ public class BananaFarm extends Tower {
         this.damage = 0;
         this.fireRateMs = Double.MAX_VALUE;
         this.lastProductionTime = 0;
+        loadImage("farm.png");
     }
 
     @Override

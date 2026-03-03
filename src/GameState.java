@@ -15,7 +15,7 @@ public class GameState {
     public String selectedTowerType; // "dart", "sniper", "bomb"
 
     public GameState() {
-        cash = 150;
+        cash = 450;
         lives = 20;
         waveNumber = 0;
         score = 0;
@@ -28,7 +28,7 @@ public class GameState {
     }
 
     public void reset() {
-        cash = 150;
+        cash = 450;
         lives = 20;
         waveNumber = 0;
         score = 0;

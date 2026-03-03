@@ -15,6 +15,7 @@ public class SniperTower extends Tower {
         range = 200;
         damage = 3;
         fireRateMs = 2000;
+        loadImage("sniper.png");
     }
 
     @Override

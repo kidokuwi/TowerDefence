@@ -1,4 +1,6 @@
 import java.awt.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -24,6 +26,8 @@ public class Projectile {
     /** Extra AoE projectiles to add (cluster bombs). */
     public List<Projectile> spawnedShots = new ArrayList<>();
 
+    protected BufferedImage image;
+
     public Projectile(double sx, double sy, Balloon target,
             double damage, double speed,
             Color color, boolean isAoe, double blastRadius) {
@@ -40,6 +44,10 @@ public class Projectile {
 
         // Initial aim
         updateVelocityTowardTarget();
+    }
+
+    public void setSprite(String spriteName) {
+        this.image = AssetLoader.loadSprite(spriteName);
     }
 
     private void updateVelocityTowardTarget() {
@@ -152,12 +160,55 @@ public class Projectile {
     public void draw(Graphics2D g) {
         if (done)
             return;
-        int r = (int) projectileRadius;
-        g.setColor(color);
-        g.fillOval((int) (x - r), (int) (y - r), r * 2, r * 2);
-        if (isAoe) {
-            g.setColor(new Color(255, 140, 0, 180));
-            g.fillOval((int) (x - r + 1), (int) (y - r + 1), r, r);
+
+        double angle = Math.atan2(vy, vx);
+        AffineTransform old = g.getTransform();
+        g.translate(x, y);
+        g.rotate(angle);
+
+        if (image != null) {
+            int drawSize = (int) (projectileRadius * 4);
+            g.drawImage(image, -drawSize / 2, -drawSize / 2, drawSize, drawSize, null);
+        } else {
+            if (isAoe) {
+                drawProceduralBomb(g);
+            } else {
+                drawProceduralDart(g);
+            }
         }
+
+        g.setTransform(old);
+    }
+
+    private void drawProceduralDart(Graphics2D g) {
+        int r = (int) projectileRadius;
+        // Wood shaft
+        g.setColor(new Color(139, 69, 19));
+        g.fillRect(-r * 2, -1, r * 3, 2);
+        // Tip
+        g.setColor(Color.LIGHT_GRAY);
+        int[] tx = { r, r + 4, r };
+        int[] ty = { -2, 0, 2 };
+        g.fillPolygon(tx, ty, 3);
+        // Fletching
+        g.setColor(Color.RED);
+        int[] fx = { -r * 2, -r * 2 - 3, -r * 2 };
+        int[] fy1 = { -1, -3, -1 };
+        int[] fy2 = { 1, 3, 1 };
+        g.fillPolygon(fx, fy1, 3);
+        g.fillPolygon(fx, fy2, 3);
+    }
+
+    private void drawProceduralBomb(Graphics2D g) {
+        int r = (int) projectileRadius;
+        // Bomb body
+        g.setColor(Color.DARK_GRAY);
+        g.fillOval(-r, -r, r * 2, r * 2);
+        // Highlight
+        g.setColor(Color.GRAY);
+        g.fillOval(-r / 2, -r / 2, r / 2, r / 2);
+        // Fuse spark
+        g.setColor(Color.ORANGE);
+        g.fillOval(-r - 2, -2, 3, 3);
     }
 }

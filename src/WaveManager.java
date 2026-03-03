@@ -77,10 +77,10 @@ public class WaveManager {
             return 1;
         }
         int r = rng.nextInt(total);
-        int cum = 0;
+        int cumulative = 0;
         for (int i = 0; i < weights.length; i++) {
-            cum += weights[i];
-            if (r < cum)
+            cumulative += weights[i];
+            if (r < cumulative)
                 return i + 1;
         }
         return 1;

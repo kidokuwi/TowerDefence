@@ -1,5 +1,6 @@
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 /**
@@ -22,6 +23,8 @@ public abstract class Tower {
     public int upgradeB = 0;
     public int totalMoneySpent = 0;
 
+    protected BufferedImage image;
+
     public abstract String getName();
 
     public abstract int getCost();
@@ -42,6 +45,10 @@ public abstract class Tower {
 
     public int getSize() {
         return 1; // 1x1 cells by default
+    }
+
+    protected void loadImage(String path) {
+        this.image = AssetLoader.loadSprite(path);
     }
 
     // ── Logic ────────────────────────────────────────────────────────────────
@@ -174,23 +181,31 @@ public abstract class Tower {
                     (int) (range * 2), (int) (range * 2));
             g.setStroke(new BasicStroke(1f));
         }
-        // Base
-        int baseSize = getSize() * 40 - 6;
-        int innerSize = getSize() * 40 - 10;
+        // Base & Sprite
+        int cellSize = getSize() * 40;
+        int drawSize = cellSize - 4;
 
-        g.setColor(getColor().darker());
-        g.fillRoundRect(px - baseSize / 2, py - baseSize / 2, baseSize, baseSize, 8, 8);
-        g.setColor(getColor());
-        g.fillRoundRect(px - innerSize / 2, py - innerSize / 2, innerSize, innerSize, 6, 6);
+        if (image != null) {
+            g.drawImage(image, px - drawSize / 2, py - drawSize / 2, drawSize, drawSize, null);
+        } else {
+            // Fallback base
+            int baseSize = cellSize - 6;
+            int innerSize = cellSize - 10;
+            g.setColor(getColor().darker());
+            g.fillRoundRect(px - baseSize / 2, py - baseSize / 2, baseSize, baseSize, 8, 8);
+            g.setColor(getColor());
+            g.fillRoundRect(px - innerSize / 2, py - innerSize / 2, innerSize, innerSize, 6, 6);
 
-        // Barrel hint (only for 1x1 shooting towers)
-        if (getSize() == 1) {
-            g.setColor(getColor().darker().darker());
-            g.fillRect(px - 3, py - 20, 6, 8);
+            // Barrel hint (only for 1x1 shooting towers)
+            if (getSize() == 1) {
+                g.setColor(getColor().darker().darker());
+                g.fillRect(px - 3, py - 20, 6, 8);
+            }
         }
 
         // Selection ring
         if (selected) {
+            int innerSize = cellSize - 10;
             g.setColor(Color.WHITE);
             g.setStroke(new BasicStroke(2.5f));
             g.drawRoundRect(px - innerSize / 2, py - innerSize / 2, innerSize, innerSize, 6, 6);

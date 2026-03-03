@@ -17,6 +17,7 @@ public class BombTower extends Tower {
         range = 110;
         damage = 2;
         fireRateMs = 1500;
+        loadImage("bomb.png");
     }
 
     @Override

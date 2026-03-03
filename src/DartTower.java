@@ -14,6 +14,7 @@ public class DartTower extends Tower {
         range = 100;
         damage = 1;
         fireRateMs = 600;
+        loadImage("dart.png");
     }
 
     @Override
