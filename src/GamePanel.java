@@ -248,7 +248,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
         rankUpdated = true;
         if (myWin)
             UserDatabase.getInstance().recordWin(currentUser.username, opponentRankPoints);
-        else
+        else if (mode != GameMode.SOLO)
             UserDatabase.getInstance().recordLoss(currentUser.username, opponentRankPoints);
         currentUser = UserDatabase.getInstance().getUser(currentUser.username);
     }
@@ -718,8 +718,6 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
             StringBuilder sb = activeField == 0 ? inputUser : inputPass;
             if (!sb.isEmpty())
                 sb.deleteCharAt(sb.length() - 1);
-        } else if (c == '\t') {
-            activeField = 1 - activeField;
         } else if (c == '\n') {
             if (mode == GameMode.AUTH_LOGIN)
                 doLogin();
@@ -735,6 +733,45 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
 
     @Override
     public void keyPressed(KeyEvent e) {
+        int code = e.getKeyCode();
+
+        // Auth Navigation
+        if (mode == GameMode.AUTH_LOGIN || mode == GameMode.AUTH_REGISTER) {
+            if (code == KeyEvent.VK_TAB) {
+                if (e.isShiftDown())
+                    activeField = (activeField - 1 + 2) % 2;
+                else
+                    activeField = (activeField + 1) % 2;
+                repaint();
+                return;
+            }
+            if (code == KeyEvent.VK_ENTER) {
+                if (mode == GameMode.AUTH_LOGIN)
+                    doLogin();
+                else
+                    doRegister();
+                return;
+            }
+        }
+
+        if (!isPlayingMode() || sessions.size() <= mySessionIndex)
+            return;
+
+        GameSession s = sessions.get(mySessionIndex);
+
+        switch (code) {
+            case KeyEvent.VK_Q, KeyEvent.VK_D -> doSidebar(s, "dart");
+            case KeyEvent.VK_W, KeyEvent.VK_S -> doSidebar(s, "sniper");
+            case KeyEvent.VK_E, KeyEvent.VK_B -> doSidebar(s, "bomb");
+            case KeyEvent.VK_R, KeyEvent.VK_F -> doSidebar(s, "farm");
+            case KeyEvent.VK_1 -> doSidebar(s, "upgA");
+            case KeyEvent.VK_2 -> doSidebar(s, "upgB");
+            case KeyEvent.VK_BACK_SPACE, KeyEvent.VK_DELETE -> doSidebar(s, "sell");
+            case KeyEvent.VK_ESCAPE -> {
+                s.state.selectedTowerType = null;
+                s.selectedTower = null;
+            }
+        }
     }
 
     @Override

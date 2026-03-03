@@ -129,6 +129,8 @@ public class Balloon {
             base = 5000;
         else if (level == 12)
             base = 1500;
+        else if (level == 13)
+            base = 250;
         else if (level == 11)
             base = 800;
         else if (level == 10)
@@ -140,13 +142,15 @@ public class Balloon {
 
     public int getSplitLevel() {
         if (level == 14)
-            return 12; // BAD splits into 2 ZOMGs and 3 DDTs (simplified to 2 ZOMGs)
+            return 12; // BAD splits into 2 ZOMGs (and DDTs, but simplified)
         if (level == 12)
-            return 11; // ZOMG splits into BFBs
+            return 11; // ZOMG -> BFBs
         if (level == 11)
-            return 10; // BFB splits into MOABs
+            return 10; // BFB -> MOABs
+        if (level == 13)
+            return 9; // DDT -> Ceramics
         if (level == 10)
-            return 9;
+            return 9; // MOAB -> Ceramics
         if (level == 9)
             return 8;
         if (level == 8)
@@ -161,6 +165,8 @@ public class Balloon {
             return 4;
         if (level == 11)
             return 4;
+        if (level == 13)
+            return 3;
         if (level == 10)
             return 4;
         if (level == 9)
@@ -181,6 +187,10 @@ public class Balloon {
             case 7 -> 300;
             case 8 -> 450;
             case 10 -> 1500;
+            case 11 -> 3500;
+            case 12 -> 8000;
+            case 13 -> 5000;
+            case 14 -> 30000;
             default -> 0;
         };
     }
@@ -196,6 +206,10 @@ public class Balloon {
             case 7 -> 12;
             case 8 -> 18;
             case 10 -> -25;
+            case 11 -> -50;
+            case 12 -> -150;
+            case 13 -> -80;
+            case 14 -> -500;
             default -> 0;
         };
     }
