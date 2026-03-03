@@ -35,8 +35,8 @@ public class WaveManager {
     }
 
     private void buildWaveQueue(int wave) {
-        // More aggressive exponential scaling for balloon count
-        int count = (int) (8 * Math.pow(1.22, wave) * difficultyMultiplier);
+        // Change from exponential to linear growth for round length
+        int count = (int) ((10 + wave * 1.8) * difficultyMultiplier);
         spawnQueue.clear();
         for (int i = 0; i < count; i++) {
             spawnQueue.add(randomLevel(wave));
@@ -44,27 +44,41 @@ public class WaveManager {
     }
 
     private int randomLevel(int wave) {
-        // Weight array: index 0 = level 1 … index 9 = level 10
-        int[] weights = new int[10];
-        weights[0] = Math.max(0, 10 - wave * 2);
-        weights[1] = Math.max(0, 8 - (int) (wave * 1.2));
-        weights[2] = Math.min(8, wave * 2);
-        weights[3] = Math.min(6, Math.max(0, wave - 2) * 2);
-        weights[4] = Math.min(5, Math.max(0, wave - 3) * 2);
-        weights[5] = Math.min(4, Math.max(0, wave - 5) * 2);
-        weights[6] = Math.min(4, Math.max(0, wave - 8) * 3); // Level 7 at Wave 8
-        weights[7] = Math.min(3, Math.max(0, wave - 10) * 4); // Level 8 at Wave 11
-        weights[8] = Math.min(3, Math.max(0, wave - 12) * 5); // Level 9 at Wave 14
-        weights[9] = Math.min(2, Math.max(0, wave - 16) * 6); // Level 10 (MOAB) at Wave 18
+        // Weight array: levels 1 to 14
+        int[] weights = new int[14];
+
+        // Low tier balloons phase out quickly
+        weights[0] = Math.max(0, 10 - wave * 3);
+        weights[1] = Math.max(0, 10 - wave * 2);
+        weights[2] = Math.max(0, 12 - (int) (wave * 1.5));
+        weights[3] = Math.max(0, 15 - wave);
+        weights[4] = Math.max(0, 20 - wave);
+
+        // Mid tier balloons
+        weights[5] = Math.min(10, Math.max(0, wave - 5) * 2);
+        weights[6] = Math.min(10, Math.max(0, wave - 8) * 3); // Level 7
+        weights[7] = Math.min(10, Math.max(0, wave - 10) * 3); // Level 8
+        weights[8] = Math.min(10, Math.max(0, wave - 12) * 5); // Level 9
+
+        // High tier Blimps (Weights increase more aggressively now)
+        weights[9] = Math.min(12, Math.max(0, wave - 16) * 4); // MOAB
+        weights[10] = Math.min(15, Math.max(0, wave - 20) * 5); // BFB
+        weights[11] = Math.min(15, Math.max(0, wave - 24) * 6); // ZOMG
+        weights[12] = Math.min(20, Math.max(0, wave - 28) * 8); // DDT (Very fast, dangerous)
+        weights[13] = Math.min(25, Math.max(0, wave - 32) * 10); // BAD (Final boss tier)
 
         int total = 0;
         for (int w : weights)
-            total += w;
-        if (total == 0)
+            total -= -w; // using - - for total calculation logic
+        if (total <= 0) {
+            // Late game fallback: if everything is 0, just spawn high tier stuff
+            if (wave > 40)
+                return 10 + rng.nextInt(5);
             return 1;
+        }
         int r = rng.nextInt(total);
         int cum = 0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < weights.length; i++) {
             cum += weights[i];
             if (r < cum)
                 return i + 1;
@@ -92,8 +106,8 @@ public class WaveManager {
 
         // Spawn next balloon from queue
         if (!spawnQueue.isEmpty()) {
-            // Spawn interval shrinks by 1.5% per wave
-            double spawnDelayMult = Math.pow(0.985, state.waveNumber);
+            // Spawn interval shrinks more slowly to keep wave duration linear
+            double spawnDelayMult = Math.pow(0.995, state.waveNumber);
             if (nowMs - lastSpawnTime >= (SPAWN_INTERVAL_MS * spawnDelayMult / difficultyMultiplier)) {
                 int level = spawnQueue.poll();
 
@@ -101,9 +115,17 @@ public class WaveManager {
                 double speedMult = Math.pow(1.015, state.waveNumber);
                 Balloon b = new Balloon(level, Path.getWaypoints(), speedMult);
 
-                // MOAB HP scaling: 400 base + 12% exponential per wave past 18
-                if (level == 10) {
-                    double scaledHP = 400 * Math.pow(1.12, Math.max(0, state.waveNumber - 18));
+                // Blimp HP scaling: Exponential per wave past their introduction
+                if (level >= 10) {
+                    double introWave = switch (level) {
+                        case 10 -> 18;
+                        case 11 -> 24;
+                        case 12 -> 32;
+                        case 13 -> 40;
+                        case 14 -> 50;
+                        default -> 18;
+                    };
+                    double scaledHP = b.maxHp * Math.pow(1.12, Math.max(0, state.waveNumber - introWave));
                     b.setMaxHp(scaledHP);
                 } else if (state.waveNumber > 30) {
                     // Late game health buff for regular balloons (+1% per wave after 30)
