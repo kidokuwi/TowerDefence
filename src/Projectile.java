@@ -18,6 +18,7 @@ public class Projectile {
     private final Color color;
     private final boolean isAoe;
     private final double blastRadius;
+    private double projectileRadius = 4; // Default visual and collision radius
 
     public boolean done;
     /** Extra AoE projectiles to add (cluster bombs). */
@@ -35,6 +36,7 @@ public class Projectile {
         this.isAoe = isAoe;
         this.blastRadius = blastRadius;
         this.done = false;
+        this.projectileRadius = isAoe ? 6 : 4;
 
         // Initial aim
         updateVelocityTowardTarget();
@@ -58,10 +60,18 @@ public class Projectile {
         this.pierce = p;
     }
 
+    public int getPierce() {
+        return pierce;
+    }
+
+    public void setProjectileRadius(double r) {
+        this.projectileRadius = r;
+    }
+
     /**
      * Moves toward target (if any) and checks for collisions.
      */
-    public void update(List<Balloon> balloons, GameState state) {
+    public void update(List<Balloon> balloons, GameState state, boolean isMultiplayer) {
         if (done)
             return;
 
@@ -97,20 +107,20 @@ public class Projectile {
             int r = (b.level == 10) ? 45
                     : (b.level == 9) ? 24 : (b.level == 8) ? 26 : (b.level == 7) ? 22 : (10 + b.level);
 
-            if (distSq <= (r + 4) * (r + 4)) {
+            if (distSq <= (r + projectileRadius) * (r + projectileRadius)) {
                 hitBalloonIds.add(id);
                 // If we hit our tracked target, stop tracking it
                 if (b == target) {
                     target = null;
                 }
-                hitAt(b, balloons, state);
+                hitAt(b, balloons, state, isMultiplayer);
                 if (done)
                     break;
             }
         }
     }
 
-    private void hitAt(Balloon b, List<Balloon> balloons, GameState state) {
+    private void hitAt(Balloon b, List<Balloon> balloons, GameState state, boolean isMultiplayer) {
         if (isAoe) {
             done = true;
             // Explosion logic
@@ -123,14 +133,14 @@ public class Projectile {
                 double dy = other.y - hy;
                 if (dx * dx + dy * dy <= blastRadius * blastRadius) {
                     if (other.takeDamage(damage)) {
-                        state.addCash(other.getReward());
+                        state.addCash(other.getReward(isMultiplayer));
                     }
                 }
             }
         } else {
             // Impact logic
             if (b.takeDamage(damage)) {
-                state.addCash(b.getReward());
+                state.addCash(b.getReward(isMultiplayer));
             }
             pierce--;
             if (pierce <= 0) {
@@ -142,7 +152,7 @@ public class Projectile {
     public void draw(Graphics2D g) {
         if (done)
             return;
-        int r = isAoe ? 6 : 4;
+        int r = (int) projectileRadius;
         g.setColor(color);
         g.fillOval((int) (x - r), (int) (y - r), r * 2, r * 2);
         if (isAoe) {

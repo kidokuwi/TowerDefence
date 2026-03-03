@@ -21,11 +21,15 @@ public class GameSession {
     public final boolean[][] onPath;
     private final List<Point> waypoints;
     private final int cell;
+    public boolean isMultiplayer;
 
-    public GameSession(int gameW, int gameH, int cellSize) {
+    public GameSession(int gameW, int gameH, int cellSize, boolean isMultiplayer) {
+        this.isMultiplayer = isMultiplayer;
         this.cell = cellSize;
         this.waypoints = Path.getWaypoints();
         this.onPath = new boolean[gameW / cell + 1][gameH / cell + 1];
+        if (isMultiplayer)
+            state.income = 250;
         markPathCells();
     }
 
@@ -54,6 +58,16 @@ public class GameSession {
             fireTowers(now);
             updateProjectiles();
             updateFloatingTexts();
+
+            // Passive Income (every 6 seconds = 6000ms)
+            if (isMultiplayer) {
+                state.incomeTimer += 24; // actionPerformed adds 24ms per tick in multiplayer
+                if (state.incomeTimer >= 6000) {
+                    state.addCash(state.income);
+                    state.incomeTimer = 0;
+                    spawnFloatingText("+$" + state.income, 30, 30, new Color(255, 215, 0));
+                }
+            }
         }
     }
 
@@ -113,9 +127,9 @@ public class GameSession {
                             if (b == tgt || b.dead || b.reachedEnd)
                                 continue;
                             projectiles.add(new Projectile(
-                                    bt.px, bt.py, b, bt.damage * 0.5,
-                                    3.5, new Color(180, 80, 20), true, bt.getBlastRadius() / 2));
-                            if (++added >= 2)
+                                    bt.px, bt.py, b, bt.damage * 0.4,
+                                    4.0, new Color(200, 100, 50), true, bt.getBlastRadius() * 0.7));
+                            if (++added >= 4)
                                 break;
                         }
                     }
@@ -128,7 +142,7 @@ public class GameSession {
         Iterator<Projectile> it = projectiles.iterator();
         while (it.hasNext()) {
             Projectile p = it.next();
-            p.update(balloons, state);
+            p.update(balloons, state, isMultiplayer);
             if (p.done)
                 it.remove();
         }
@@ -153,6 +167,11 @@ public class GameSession {
             }
         }
         balloons.addAll(newBalloons);
+    }
+
+    public void spawnSentBalloon(int level) {
+        Balloon b = new Balloon(level, waypoints, 1.0);
+        balloons.add(b);
     }
 
     public void reset(long now) {

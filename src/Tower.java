@@ -20,6 +20,7 @@ public abstract class Tower {
     // ── Upgrade state ────────────────────────────────────────────────────────
     public int upgradeA = 0; // Level 0-3
     public int upgradeB = 0;
+    public int totalMoneySpent = 0;
 
     public abstract String getName();
 
@@ -86,6 +87,7 @@ public abstract class Tower {
 
             if (state.canAfford(getUpgradeACost())) {
                 state.spend(getUpgradeACost());
+                totalMoneySpent += getUpgradeACost();
                 upgradeA++;
                 applyUpgradeA();
                 return true;
@@ -100,12 +102,17 @@ public abstract class Tower {
 
             if (state.canAfford(getUpgradeBCost())) {
                 state.spend(getUpgradeBCost());
+                totalMoneySpent += getUpgradeBCost();
                 upgradeB++;
                 applyUpgradeB();
                 return true;
             }
         }
         return false;
+    }
+
+    public int getSellPrice() {
+        return (int) (totalMoneySpent * 0.7);
     }
 
     public Projectile fire(Balloon target, long nowMs) {

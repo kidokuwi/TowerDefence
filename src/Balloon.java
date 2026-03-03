@@ -18,10 +18,15 @@ public class Balloon {
             new Color(150, 150, 160), // 7 – Metallic Grey (Big)
             new Color(120, 0, 200), // 8 - Purple (Elite Splitter)
             new Color(150, 100, 50), // 9 - Ceramic (Tough)
-            new Color(0, 150, 255) // 10 - MOAB (Massive)
+            new Color(0, 150, 255), // 10 - MOAB (Massive)
+            new Color(255, 50, 50), // 11 - BFB (Red Blimp)
+            new Color(50, 255, 50), // 12 - ZOMG (Green Blimp)
+            new Color(40, 40, 50), // 13 - DDT (Black Blimp)
+            new Color(180, 50, 220) // 14 - BAD (Big Purple Blimp)
     };
-    private static final int[] BASE_HP = { 1, 2, 3, 5, 8, 14, 30, 45, 60, 400 };
-    private static final double[] BASE_SPEED = { 1.5, 1.6, 1.75, 1.9, 2.1, 2.4, 1.8, 2.2, 2.0, 1.0 };
+    private static final int[] BASE_HP = { 1, 2, 3, 5, 8, 14, 30, 45, 60, 400, 1400, 4000, 400, 20000 };
+    private static final double[] BASE_SPEED = { 1.5, 1.6, 1.75, 1.9, 2.1, 2.4, 1.8, 2.2, 2.0, 1.0, 0.8, 0.6, 2.8,
+            0.4 };
 
     // ── Fields ───────────────────────────────────────────────────────────────
     public int level; // 1-6
@@ -40,7 +45,7 @@ public class Balloon {
 
     // ── Constructor ──────────────────────────────────────────────────────────
     public Balloon(int level, List<Point> waypoints, double speedMultiplier) {
-        this.level = Math.max(1, Math.min(level, 10));
+        this.level = Math.max(1, Math.min(level, 14));
         this.waypoints = waypoints;
         int idx = this.level - 1;
         this.maxHp = BASE_HP[idx];
@@ -117,17 +122,29 @@ public class Balloon {
         this.hp = newMax;
     }
 
-    public int getReward() {
-        if (level == 10)
-            return 500;
-        if (level == 9)
-            return 150;
-        if (level == 8)
-            return 200;
-        return level == 7 ? 100 : level * 10;
+    public int getReward(boolean isMultiplayer) {
+        double mult = isMultiplayer ? 0.4 : 1.0; // VS mode gives 40% income from pops
+        int base;
+        if (level == 14)
+            base = 5000;
+        else if (level == 12)
+            base = 1500;
+        else if (level == 11)
+            base = 800;
+        else if (level == 10)
+            base = 100;
+        else
+            base = level * 5;
+        return (int) (base * mult);
     }
 
     public int getSplitLevel() {
+        if (level == 14)
+            return 12; // BAD splits into 2 ZOMGs and 3 DDTs (simplified to 2 ZOMGs)
+        if (level == 12)
+            return 11; // ZOMG splits into BFBs
+        if (level == 11)
+            return 10; // BFB splits into MOABs
         if (level == 10)
             return 9;
         if (level == 9)
@@ -138,6 +155,12 @@ public class Balloon {
     }
 
     public int getSplitCount() {
+        if (level == 14)
+            return 2;
+        if (level == 12)
+            return 4;
+        if (level == 11)
+            return 4;
         if (level == 10)
             return 4;
         if (level == 9)
@@ -145,6 +168,36 @@ public class Balloon {
         if (level == 8)
             return 2;
         return level == 7 ? 4 : 0;
+    }
+
+    public static int getSendCost(int level) {
+        return switch (level) {
+            case 1 -> 20;
+            case 2 -> 40;
+            case 3 -> 60;
+            case 4 -> 90;
+            case 5 -> 120;
+            case 6 -> 200;
+            case 7 -> 300;
+            case 8 -> 450;
+            case 10 -> 1500;
+            default -> 0;
+        };
+    }
+
+    public static int getSendEcoChange(int level) {
+        return switch (level) {
+            case 1 -> 1;
+            case 2 -> 2;
+            case 3 -> 3;
+            case 4 -> 4;
+            case 5 -> 5;
+            case 6 -> 7;
+            case 7 -> 12;
+            case 8 -> 18;
+            case 10 -> -25;
+            default -> 0;
+        };
     }
 
     public Color getColor() {
@@ -155,7 +208,23 @@ public class Balloon {
     public void draw(Graphics2D g) {
         if (dead || reachedEnd)
             return;
-        int r = (level == 10) ? 45 : (level == 9) ? 24 : (level == 8) ? 26 : (level == 7) ? 22 : (10 + level);
+        int r;
+        if (level == 14)
+            r = 70;
+        else if (level == 12)
+            r = 60;
+        else if (level == 11)
+            r = 55;
+        else if (level == 10)
+            r = 45;
+        else if (level == 9)
+            r = 24;
+        else if (level == 8)
+            r = 26;
+        else if (level == 7)
+            r = 22;
+        else
+            r = (10 + level);
         // Shadow
         g.setColor(new Color(0, 0, 0, 60));
         g.fillOval((int) (x - r + 2), (int) (y - r + 2), r * 2, r * 2);

@@ -9,6 +9,8 @@ public class GameState {
     public boolean gameOver;
     public boolean victory;
     public boolean turboMode;
+    public int income;
+    public long incomeTimer;
     /** Type name of tower currently selected for placement, or null. */
     public String selectedTowerType; // "dart", "sniper", "bomb"
 
@@ -20,6 +22,8 @@ public class GameState {
         gameOver = false;
         victory = false;
         turboMode = false;
+        income = 0;
+        incomeTimer = 0;
         selectedTowerType = null;
     }
 
@@ -31,6 +35,8 @@ public class GameState {
         gameOver = false;
         victory = false;
         turboMode = false;
+        income = 0;
+        incomeTimer = 0;
         selectedTowerType = null;
     }
 

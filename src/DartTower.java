@@ -29,9 +29,9 @@ public class DartTower extends Tower {
     @Override
     public int getUpgradeACost() {
         return switch (upgradeA) {
-            case 0 -> 100;
-            case 1 -> 300;
-            case 2 -> 1200;
+            case 0 -> 120; // Sharp Darts
+            case 1 -> 450; // Spike-o-pult
+            case 2 -> 1500; // Juggernaut
             default -> 0;
         };
     }
@@ -39,9 +39,9 @@ public class DartTower extends Tower {
     @Override
     public int getUpgradeBCost() {
         return switch (upgradeB) {
-            case 0 -> 120;
-            case 1 -> 400;
-            case 2 -> 1500;
+            case 0 -> 150; // Quick Shots
+            case 1 -> 600; // Triple Shot
+            case 2 -> 15000; // Super Monkey (Very expensive!)
             default -> 0;
         };
     }
@@ -72,58 +72,79 @@ public class DartTower extends Tower {
 
     @Override
     public Color getColor() {
+        if (upgradeB == 3)
+            return new Color(180, 230, 255); // Super Monkey Light Blue
+        if (upgradeA == 3)
+            return new Color(80, 80, 90); // Juggernaut Dark Grey
         return new Color(70, 130, 220); // Blue
     }
 
     @Override
     protected void applyUpgradeA() {
-        // Levels: 1: Dmg 2/R 120, 2: Dmg 4/R 140, 3: Dmg 10/R 200/FR 300
+        // Path A: Power and Pierce, but Slower
         if (upgradeA == 1) {
+            // Sharp Darts: Simple dmg/range buff
             damage = 2;
-            range = 120;
+            range = 110;
         } else if (upgradeA == 2) {
-            damage = 4;
-            range = 140;
+            // Spike-o-pult: Slow, higher damage, high pierce
+            fireRateMs = 1200;
+            damage = 5;
+            range = 150;
         } else if (upgradeA == 3) {
-            damage = 10;
-            range = 200;
-            fireRateMs = 300;
+            // Juggernaut: Very slow, massive damage, infinite-ish pierce
+            fireRateMs = 2000;
+            damage = 20;
+            range = 220;
         }
     }
 
     @Override
     protected void applyUpgradeB() {
-        // Levels: 1: FR 300, 2: FR 150, 3: FR 80/R 180
+        // Path B: Speed
         if (upgradeB == 1) {
-            fireRateMs = 300;
+            fireRateMs = 400; // Quick Shots
         } else if (upgradeB == 2) {
-            fireRateMs = 150;
+            // Triple Shot: Fire rate stays same as Quick Shots, logic in fire()
+            fireRateMs = 400;
         } else if (upgradeB == 3) {
-            fireRateMs = 80;
-            range = 180;
+            // Super Monkey: Extreme speed, single stream
+            fireRateMs = 40;
+            damage = 2;
+            range = 250;
         }
     }
 
-    /** Creates and returns a new Projectile aimed at the target balloon. */
     @Override
     public Projectile fire(Balloon target, long nowMs) {
         lastFireTime = nowMs;
+
         // Base projectile
-        Projectile p = new Projectile(px, py, target, damage, 5.0, getColor(), false, 0);
-        int pierce = 1;
-        if (upgradeA == 1)
-            pierce = 2;
-        else if (upgradeA == 2)
-            pierce = 5;
-        else if (upgradeA == 3)
-            pierce = 30;
+        double speed = (upgradeB == 3) ? 12.0 : 5.0; // Faster darts for Super Monkey
 
-        if (upgradeB == 3 && pierce < 3)
-            pierce = 3;
-        p.setPierce(pierce);
+        Projectile p = new Projectile(px, py, target, damage, speed, getColor(), false, 0);
 
-        // Triple Shot logic: Add 2 extra projectiles in a fan pattern
-        if (upgradeB >= 2) {
+        // Customizing projectile physics/visuals based on upgrade
+        if (upgradeA == 2) {
+            // Spike-o-pult
+            p.setPierce(10);
+            p.setProjectileRadius(8);
+        } else if (upgradeA == 3) {
+            // Juggernaut
+            p.setPierce(60);
+            p.setProjectileRadius(14);
+        } else {
+            // Standard/Path B pierce
+            int pierce = 1;
+            if (upgradeA == 1)
+                pierce = 2;
+            if (upgradeB == 3)
+                pierce = 3; // Super Monkey darts pierce a bit
+            p.setPierce(pierce);
+        }
+
+        // Triple Shot logic (ONLY if not Super Monkey)
+        if (upgradeB == 2) {
             double angle = Math.atan2(target.y - py, target.x - px);
             double fanAngle = Math.toRadians(15);
 
@@ -131,17 +152,18 @@ public class DartTower extends Tower {
             Projectile pLeft = new Projectile(px, py, null, damage, 5.0, getColor(), false, 0);
             pLeft.vx = Math.cos(angle - fanAngle) * 5.0;
             pLeft.vy = Math.sin(angle - fanAngle) * 5.0;
-            pLeft.setPierce(pierce);
+            pLeft.setPierce(p.getPierce());
             p.spawnedShots.add(pLeft);
 
             // Right shot
             Projectile pRight = new Projectile(px, py, null, damage, 5.0, getColor(), false, 0);
             pRight.vx = Math.cos(angle + fanAngle) * 5.0;
             pRight.vy = Math.sin(angle + fanAngle) * 5.0;
-            pRight.setPierce(pierce);
+            pRight.setPierce(p.getPierce());
             p.spawnedShots.add(pRight);
         }
 
         return p;
     }
+
 }
