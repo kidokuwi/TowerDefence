@@ -12,7 +12,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
 
     public enum GameMode {
         AUTH_LOGIN, AUTH_REGISTER, MENU,
-        SOLO, VS, HOST, JOIN,
+        SOLO, VS, HOST, JOIN, BOT_MATCH,
         LOBBY_HOST, LOBBY_JOIN, LOBBY_MATCHMAKING,
         PROFILE, LEADERBOARD
     }
@@ -45,6 +45,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
     private String gameCode = "";
     private boolean otherPlayerConnected = false;
     private boolean rankUpdated = false;
+    private AIBot bot = null;
 
     private BufferedImage buffer;
     private final Timer timer;
@@ -69,7 +70,8 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
 
     // ── Mode helpers ──────────────────────────────────────────────────────────
     private boolean isPlayingMode() {
-        return mode == GameMode.SOLO || mode == GameMode.VS || mode == GameMode.HOST || mode == GameMode.JOIN;
+        return mode == GameMode.SOLO || mode == GameMode.VS || mode == GameMode.HOST || mode == GameMode.JOIN
+                || mode == GameMode.BOT_MATCH;
     }
 
     private boolean isLobbyMode() {
@@ -204,7 +206,16 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
                     }
                 }
             }
-            if ((mode == GameMode.VS || isMultiplayer) && sessions.size() == 2) {
+            if (mode == GameMode.BOT_MATCH && bot != null) {
+                bot.update(sessions.get(1).logicalTime);
+
+                // If the bot decided to send balloons, spawn them on the human's side
+                while (!bot.pendingSends.isEmpty()) {
+                    int lvl = bot.pendingSends.poll();
+                    sessions.get(0).spawnSentBalloon(lvl);
+                }
+            }
+            if ((mode == GameMode.VS || mode == GameMode.BOT_MATCH || isMultiplayer) && sessions.size() == 2) {
                 GameSession s1 = sessions.get(0), s2 = sessions.get(1);
                 if (s1.state.gameOver && !s2.state.gameOver) {
                     s2.state.victory = true;
@@ -227,7 +238,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
         if (rankUpdated || sessions.isEmpty() || currentUser == null)
             return;
         // Local VS is unranked — no rank changes
-        if (mode == GameMode.VS)
+        if (mode == GameMode.VS || mode == GameMode.BOT_MATCH)
             return;
         boolean ended = false, myWin = false;
         if (isMultiplayer && sessions.size() == 2) {
@@ -500,7 +511,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
 
     // ── Mouse ─────────────────────────────────────────────────────────────────
     @Override
-    public void mouseClicked(MouseEvent e) {
+    public void mousePressed(MouseEvent e) {
         requestFocusInWindow();
         int rx = e.getX(), ry = e.getY(), mx, my;
         if (isMenuMode() || isLobbyMode()) {
@@ -978,25 +989,70 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
     private void startMatchmaking() {
         initGame(GameMode.LOBBY_MATCHMAKING);
         new Thread(() -> {
-            try (Socket broker = new Socket(BROKER_IP, 12346);
-                    BufferedReader in = new BufferedReader(new InputStreamReader(broker.getInputStream()))) {
-                String resp = in.readLine();
-                if (resp == null)
-                    return;
-                SwingUtilities.invokeLater(() -> {
-                    if (resp.equals("ROLE:HOST"))
-                        initGame(GameMode.HOST);
-                    else if (resp.startsWith("ROLE:JOIN:"))
-                        initGame(GameMode.JOIN, resp.substring(10));
-                });
+            boolean success = false;
+            try (Socket broker = new Socket()) {
+                // Connect with a 5000ms timeout
+                broker.connect(new InetSocketAddress(BROKER_IP, 12346), 5000);
+                // Also set a read timeout so we don't wait forever for the broker
+                broker.setSoTimeout(5000);
+
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(broker.getInputStream()))) {
+                    String resp = in.readLine();
+                    if (resp != null) {
+                        success = true;
+                        SwingUtilities.invokeLater(() -> {
+                            if (resp.equals("ROLE:HOST"))
+                                initGame(GameMode.HOST);
+                            else if (resp.startsWith("ROLE:JOIN:"))
+                                initGame(GameMode.JOIN, resp.substring(10));
+                        });
+                    }
+                }
             } catch (Exception ex) {
-                ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> {
-                    JOptionPane.showMessageDialog(this, "Matchmaking broker not found at " + BROKER_IP + ":12346");
-                    returnToMenu();
-                });
+                System.out.println("Matchmaking failed or timed out: " + ex.getMessage());
+            }
+
+            if (!success) {
+                // Fallback to AI Match
+                SwingUtilities.invokeLater(this::startBotMatch);
             }
         }).start();
+    }
+
+    private void startBotMatch() {
+        long seed = new Random().nextLong();
+        sessions.clear();
+        sidebars.clear();
+        isMultiplayer = true; // Pretend it's multiplayer for UI and eco rules
+        mySessionIndex = 0;
+        this.mode = GameMode.BOT_MATCH;
+        renderScale = 0.65;
+
+        for (int i = 0; i < 2; i++) {
+            GameSession s = new GameSession(GAME_W, GAME_H, CELL, true);
+            s.waveMgr.setDifficulty(1.5);
+            s.waveMgr.setSeed(seed);
+            sessions.add(s);
+            Sidebar sb = new Sidebar();
+            sb.setOffsetX(GAME_W);
+            sidebars.add(sb);
+        }
+
+        // Initialize the bot for the opponent's session (index 1)
+        bot = new AIBot(sessions.get(1));
+        otherPlayerConnected = true;
+
+        // Dummy opponent info
+        opponentUsername = "AI Bot";
+        opponentRankPoints = currentUser != null ? currentUser.rankPoints : RankSystem.STARTING_POINTS;
+        rankUpdated = false; // BOT matches are currently unranked as they can be farmed
+
+        calculateScale();
+        SwingUtilities.invokeLater(() -> {
+            ensureBuffer(Math.max(1, getWidth()), Math.max(1, getHeight()));
+            revalidate();
+            repaint();
+        });
     }
 
     private void initGameSession(long seed) {
@@ -1249,7 +1305,7 @@ public class GamePanel extends JPanel implements ActionListener, MouseListener, 
 
     // ── Unused MouseListener stubs ────────────────────────────────────────────
     @Override
-    public void mousePressed(MouseEvent e) {
+    public void mouseClicked(MouseEvent e) {
     }
 
     @Override

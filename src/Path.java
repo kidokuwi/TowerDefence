@@ -8,23 +8,23 @@ import java.util.List;
  */
 public class Path {
     private static final List<Point> WAYPOINTS = Arrays.asList(
-            new Point(-20, 90),
-            new Point(100, 90),
-            new Point(100, 200),
-            new Point(230, 200),
-            new Point(230, 90),
-            new Point(370, 90),
-            new Point(370, 320),
-            new Point(130, 320),
-            new Point(130, 450),
-            new Point(370, 450),
-            new Point(370, 550),
-            new Point(530, 550),
-            new Point(530, 200),
-            new Point(660, 200),
-            new Point(660, 450),
-            new Point(780, 450),
-            new Point(820, 450));
+            new Point(-20, 100),
+            new Point(100, 100),
+            new Point(100, 220),
+            new Point(220, 220),
+            new Point(220, 100),
+            new Point(380, 100),
+            new Point(380, 340),
+            new Point(140, 340),
+            new Point(140, 460),
+            new Point(380, 460),
+            new Point(380, 540),
+            new Point(540, 540),
+            new Point(540, 220),
+            new Point(660, 220),
+            new Point(660, 460),
+            new Point(780, 460),
+            new Point(820, 460));
 
     public static List<Point> getWaypoints() {
         return WAYPOINTS;
